@@ -1,0 +1,83 @@
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+sns.set_theme()
+
+
+def plot_training_history(training_history):
+    """
+    Plots the training and validation losses along the training history
+    (epochs).
+    """
+    fig = plt.figure(figsize=(14, 6))
+
+    sns.lineplot(
+        x=range(len(training_history['training_loss'])),
+        y=training_history['training_loss'],
+        label='Training loss'
+    )
+
+    sns.lineplot(
+        x=range(len(training_history['val_loss'])),
+        y=training_history['val_loss'],
+        label='Validation loss'
+    )
+
+    plot_title = (
+        'Loss VS epoch'
+        f'\nFinal val loss: {training_history["val_loss"][-1]}'
+    )
+
+    plt.title(plot_title)
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend(loc='upper right')
+
+
+def plot_evaluation(eval_results):
+    """
+    Given a results dataframe from the `evaluate_model` function, plots:
+      * Predictions VS targets (compared with the ideal case).
+      * Histogram for the distribution of residuals.
+    """
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(14, 8))
+
+    plt.subplots_adjust(hspace=0.4)
+
+    sns.scatterplot(
+        x=eval_results['target'],
+        y=eval_results['pred'],
+        color=sns.color_palette()[0],
+        label='Actual predictions',
+        ax=axs[0]
+    )
+
+    sns.lineplot(
+        x=eval_results['target'],
+        y=eval_results['target'],
+        label='Ideal predictions',
+        color=sns.color_palette()[1],
+        ax=axs[0]
+    )
+
+    sns.lineplot(
+        x=eval_results['target'],
+        y=[eval_results['target'].mean()] * eval_results['target'].shape[0],
+        label='Mean training target',
+        color=sns.color_palette()[2],
+        ax=axs[0]
+    )
+
+    plt.sca(axs[0])
+    plt.legend(loc='upper left')
+    plt.title('Predictions VS Target values')
+
+    sns.histplot(
+        x=eval_results['residual'],
+        stat='density',
+        ax=axs[1]
+    )
+
+    plt.sca(axs[1])
+    plt.title('Distribution of residuals')

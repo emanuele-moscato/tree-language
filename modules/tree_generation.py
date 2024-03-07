@@ -130,3 +130,34 @@ def gen_x(K,q,psum,root):
     #print('itry=',itry,'sequence obtained at generation K=',K)
     #print(x[K,:])
     return x
+
+
+def generate_dataset_lognormal(n_samples, k, q, sigma):
+    """
+    Generates a dataset of size `n_samples` given a tree structure with `k`
+    level (exlcuding the root, so `k+1` levels in total), a vocabulary of size
+    `q` and transition matrices with entries sampled from a log-normal
+    distribution with standard deviation `sigma`. Roots are drawn from a
+    uniform distribution.
+    """
+    # Generate the transition matrix.
+    rho = calcrho_lognormal(q, sigma)  # Transition tensor.
+    psum = calcpsum(q, rho)  # CDFs of the transition probabilities.
+
+    # Generate roots.
+    roots = np.random.choice(range(q), n_samples, replace=True)
+
+    # Generate trees.
+    trees = [
+        gen_x(k, q, psum, root)
+        for root in roots
+    ]
+
+    # Extract the leaves from the trees (for ease of use in the training
+    # phase).
+    leaves = np.array([
+        tree[-1, :]
+        for tree in trees
+    ])
+
+    return rho, trees, roots, leaves
