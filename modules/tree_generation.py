@@ -1,6 +1,12 @@
 import numpy as np
 
 
+def compute_rho_entropy(rho, q):
+    entropy_normalization = 2. * np.log(q) / np.log(2.)
+
+    return - np.sum([(rho[i, ...] * np.log(rho[i, ...])).sum() for i in range(3)]) / (3. * entropy_normalization)
+
+
 def calcrho_lognormal(q, sigma):
     """
     Generates a tensor `rho` in which for each `a` (first index) each entry
@@ -25,6 +31,17 @@ def calcrho_lognormal(q, sigma):
         sum2=np.sum(rho2)
         rho[a,:,:]=rho[a,:,:]/sum2
         
+    return rho
+
+
+def calcrho_simplified(q, eps=0.01):
+    """
+    """
+    rho = eps * np.ones(shape=(q, q, q))
+
+    for i in range(q):
+        rho[i, i, i] = 1. - (q ** 2 -1) * eps
+
     return rho
 
 
@@ -142,6 +159,37 @@ def generate_dataset_lognormal(n_samples, k, q, sigma):
     """
     # Generate the transition matrix.
     rho = calcrho_lognormal(q, sigma)  # Transition tensor.
+    psum = calcpsum(q, rho)  # CDFs of the transition probabilities.
+
+    # Generate roots.
+    roots = np.random.choice(range(q), n_samples, replace=True)
+
+    # Generate trees.
+    trees = [
+        gen_x(k, q, psum, root)
+        for root in roots
+    ]
+
+    # Extract the leaves from the trees (for ease of use in the training
+    # phase).
+    leaves = np.array([
+        tree[-1, :]
+        for tree in trees
+    ])
+
+    return rho, trees, roots, leaves
+
+
+def generate_dataset_simplified(n_samples, k, q, eps):
+    """
+    Generates a dataset of size `n_samples` given a tree structure with `k`
+    level (exlcuding the root, so `k+1` levels in total), a vocabulary of size
+    `q` and transition matrices with entries sampled from a log-normal
+    distribution with standard deviation `sigma`. Roots are drawn from a
+    uniform distribution.
+    """
+    # Generate the transition matrix.
+    rho = calcrho_simplified(q, eps)  # Transition tensor.
     psum = calcpsum(q, rho)  # CDFs of the transition probabilities.
 
     # Generate roots.

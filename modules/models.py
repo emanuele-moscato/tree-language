@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 
@@ -16,7 +17,8 @@ class FFNN(nn.Module):
             dims,
             activation='relu',
             output_activation='identity',
-            batch_normalization=False
+            batch_normalization=False,
+            concatenate_last_dim=False
         ):
         """
         Class constructor. `dims` is a list of int representing the
@@ -26,6 +28,10 @@ class FFNN(nn.Module):
         super().__init__()
 
         self.batch_normalization = batch_normalization
+        self.concatenate_last_dim = concatenate_last_dim
+
+        if concatenate_last_dim:
+            dims[0] = dims[0] * dims[-1]
 
         # In order for PyTorch to be able to detect submodules, they either
         # need to be attributes of the `Module` subclass or they need to be
@@ -85,6 +91,9 @@ class FFNN(nn.Module):
         Forward pass of the model.
         """
         out = x
+
+        if self.concatenate_last_dim:
+            out = out.reshape(out.shape[0], -1)
 
         for i, (layer, activation) in enumerate(
                 zip(self.linear_layers, self.activations)

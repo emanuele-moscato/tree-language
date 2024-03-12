@@ -5,11 +5,12 @@ import seaborn as sns
 sns.set_theme()
 
 
-def plot_training_history(training_history):
+def plot_training_history(training_history, baseline_accuracy=None):
     """
     Plots the training and validation losses along the training history
     (epochs).
     """
+    # Plot loss.
     fig = plt.figure(figsize=(14, 6))
 
     sns.lineplot(
@@ -33,6 +34,35 @@ def plot_training_history(training_history):
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend(loc='upper right')
+
+    # Plot accuracy.
+    accuracy_metrics = [
+        k for k in training_history.keys() if 'accuracy' in k or 'acc' in k
+    ]
+
+    if len(accuracy_metrics) > 0:
+        fig = plt.figure(figsize=(14, 6))
+
+        for i, accuracy_metric in enumerate(accuracy_metrics):
+            sns.lineplot(
+                x=range(len(training_history[accuracy_metric])),
+                y=training_history[accuracy_metric],
+                label=accuracy_metric,
+                color=sns.color_palette()[i]
+            )
+
+        if baseline_accuracy is not None:
+            sns.lineplot(
+                x=range(len(training_history[accuracy_metric])),
+                y=baseline_accuracy,
+                label='Baseline accuracy',
+                color=sns.color_palette()[i+1]
+            )
+
+        plt.legend()
+
+        plt.xlabel('Epoch')
+        plt.ylabel('Accuracy')
 
 
 def plot_evaluation(eval_results):
