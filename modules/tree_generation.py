@@ -45,6 +45,31 @@ def calcrho_simplified(q, eps=0.01):
     return rho
 
 
+def calcrho(matrix_type, **kwargs):
+    """
+    Handler method to generate different types of transition matrices.
+    """
+    if matrix_type == 'lognormal':
+        rho = calcrho_lognormal(q=kwargs['q'], sigma=kwargs['sigma'])
+    elif matrix_type == 'simplified':
+        rho = calcrho_simplified(q=kwargs['q'], eps=kwargs['eps'])
+    elif matrix_type == 'mixed':
+        rho_s = calcrho('simplified', q=kwargs['q'], eps=kwargs['eps'])
+        rho_l = calcrho('lognormal', q=kwargs['q'], sigma=kwargs['sigma'])
+
+        # Fraction of "lognormality".
+        mixing = kwargs['mixing']
+
+        rho = ((1. - mixing) * rho_s + mixing * rho_l)
+    else:
+        raise NotImplementedError(
+            f'Generation of transition matrices of type {matrix_type} not '
+            'implemented'
+        )
+    
+    return rho
+
+
 def calcnn(b, c, q):
     """
     Converts the representation of an ordered pair of children nodes `(b, c)`
@@ -149,47 +174,14 @@ def gen_x(K,q,psum,root):
     return x
 
 
-def generate_dataset_lognormal(n_samples, k, q, sigma):
+def generate_dataset(rho, n_samples, k, q):
     """
     Generates a dataset of size `n_samples` given a tree structure with `k`
     level (exlcuding the root, so `k+1` levels in total), a vocabulary of size
-    `q` and transition matrices with entries sampled from a log-normal
-    distribution with standard deviation `sigma`. Roots are drawn from a
-    uniform distribution.
+    `q` and transition matrices `rho`. Roots are drawn from a uniform
+    distribution.
     """
     # Generate the transition matrix.
-    rho = calcrho_lognormal(q, sigma)  # Transition tensor.
-    psum = calcpsum(q, rho)  # CDFs of the transition probabilities.
-
-    # Generate roots.
-    roots = np.random.choice(range(q), n_samples, replace=True)
-
-    # Generate trees.
-    trees = [
-        gen_x(k, q, psum, root)
-        for root in roots
-    ]
-
-    # Extract the leaves from the trees (for ease of use in the training
-    # phase).
-    leaves = np.array([
-        tree[-1, :]
-        for tree in trees
-    ])
-
-    return rho, trees, roots, leaves
-
-
-def generate_dataset_simplified(n_samples, k, q, eps):
-    """
-    Generates a dataset of size `n_samples` given a tree structure with `k`
-    level (exlcuding the root, so `k+1` levels in total), a vocabulary of size
-    `q` and transition matrices with entries sampled from a log-normal
-    distribution with standard deviation `sigma`. Roots are drawn from a
-    uniform distribution.
-    """
-    # Generate the transition matrix.
-    rho = calcrho_simplified(q, eps)  # Transition tensor.
     psum = calcpsum(q, rho)  # CDFs of the transition probabilities.
 
     # Generate roots.

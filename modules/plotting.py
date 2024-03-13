@@ -1,3 +1,4 @@
+import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -5,7 +6,12 @@ import seaborn as sns
 sns.set_theme()
 
 
-def plot_training_history(training_history, baseline_accuracy=None):
+def plot_training_history(
+        training_history,
+        baseline_accuracy=None,
+        savefig_dir=None,
+        exp_id=None
+    ):
     """
     Plots the training and validation losses along the training history
     (epochs).
@@ -35,6 +41,13 @@ def plot_training_history(training_history, baseline_accuracy=None):
     plt.ylabel('Loss')
     plt.legend(loc='upper right')
 
+    if (savefig_dir is not None) and (exp_id is not None):
+        plt.savefig(
+            os.path.join(savefig_dir, f'{exp_id}_loss.png'),
+            dpi=400,
+            bbox_inches='tight'
+        )
+
     # Plot accuracy.
     accuracy_metrics = [
         k for k in training_history.keys() if 'accuracy' in k or 'acc' in k
@@ -63,6 +76,13 @@ def plot_training_history(training_history, baseline_accuracy=None):
 
         plt.xlabel('Epoch')
         plt.ylabel('Accuracy')
+    
+        if (savefig_dir is not None) and (exp_id is not None):
+            plt.savefig(
+                os.path.join(savefig_dir, f'{exp_id}_accuracy.png'),
+                dpi=400,
+                bbox_inches='tight'
+            )
 
 
 def plot_evaluation(eval_results):

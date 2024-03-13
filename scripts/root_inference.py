@@ -5,9 +5,7 @@ import torch
 sys.path.append('../modules/')
 
 from logger import get_logger
-from tree_generation import (
-    generate_dataset_lognormal, generate_dataset_simplified,
-    compute_rho_entropy)
+from tree_generation import (calcrho, generate_dataset, compute_rho_entropy)
 from models import FFNN
 from training import training_step
 from model_evaluation import compute_accuracy
@@ -23,16 +21,19 @@ def main():
     # Generate data.
     logger.info('Generating dataset')
 
+    matrix_type = 'simplified'
     n_samples = 10000
     k = 5
     q = 3
     sigma = 5.
     eps = 0.02
 
-    # rho, trees, roots, leaves = generate_dataset_lognormal(n_samples, k, q, sigma)
-    rho, trees, roots, leaves = generate_dataset_simplified(n_samples, k, q, eps=eps)
+    rho = calcrho(matrix_type, q=q, eps=eps)
+    rho, trees, roots, leaves = generate_dataset(rho, n_samples, k, q)
 
     rho_entropy = compute_rho_entropy(rho, q)
+
+    logger.info(f'Entropy of the transition matrices: {rho_entropy}')
 
     # Train-test split.
     logger.info('Splitting training and test data')
@@ -60,7 +61,7 @@ def main():
         concatenate_last_dim=True
     ).to(device=device)
 
-    print(f'N params: {sum(p.numel() for p in model.parameters())}')
+    logger.info(f'N params (model): {sum(p.numel() for p in model.parameters())}')
 
     loss_fn = torch.nn.CrossEntropyLoss()
 
@@ -181,7 +182,12 @@ def main():
 
     baseline_accuracy = 1. / q
 
-    plot_training_history(training_history, baseline_accuracy=baseline_accuracy)
+    plot_training_history(
+        training_history,
+        baseline_accuracy=baseline_accuracy,
+        savefig_dir='./',
+        exp_id='test'
+    )
 
     logger.info(f'Final test accuracy: {training_history["val_accuracy"][-1]} (baseline: {baseline_accuracy})')
 
