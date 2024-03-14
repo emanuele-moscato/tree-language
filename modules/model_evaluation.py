@@ -358,7 +358,17 @@ def save_experiment_info_old(
 def load_experiment_catalog(experiment_catalog_path):
     """
     """
-    return pd.read_csv(experiment_catalog_path)
+    experiment_catalog = pd.read_csv(experiment_catalog_path)
+
+    experiment_catalog['dims'] = (
+        experiment_catalog['dims']
+        .apply(
+            lambda x: x.lstrip('[').rstrip(']').replace(' ', '').split(',')
+        )
+        .apply(lambda l: [int(el) for el in l])
+    )
+
+    return experiment_catalog
 
 
 def save_experiment_info(experiment_catalog_path, **kwargs):

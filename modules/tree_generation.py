@@ -4,7 +4,10 @@ import numpy as np
 def compute_rho_entropy(rho, q):
     entropy_normalization = 2. * np.log(q) / np.log(2.)
 
-    return - np.sum([(rho[i, ...] * np.log(rho[i, ...])).sum() for i in range(3)]) / (3. * entropy_normalization)
+    # return - np.sum([(rho[i, ...] * np.log(rho[i, ...])).sum() for i in range(3)]) / (3. * entropy_normalization)
+
+    # Consider only contributions from the nonzero entries.
+    return - np.sum([(rho[i, rho[i] != 0.] * np.log(rho[i, rho[i] != 0.])).sum() for i in range(3)]) / (3. * entropy_normalization)
 
 
 def calcrho_lognormal(q, sigma):
@@ -34,13 +37,75 @@ def calcrho_lognormal(q, sigma):
     return rho
 
 
-def calcrho_simplified(q, eps=0.01):
+def calcrho_simplified(q, eps):
     """
+    Generates a tensor `rho` for the transition matrices such that if the
+    parent node contains symbol `a`, then the children nodes have
+    probabilities
+        * p((b, c) != (a, a) | a) = eps,
+        * p((a, a) | a) = 1 - (q ** 2 - 1) * eps
+    In essence, every pair of children nodes different from `(a, a)` has
+    probability `eps` and he pair `(a, a)` has whatever probability remains
+    to ensure normalization (i.e. if `eps` is small, the pair (a, a) is much
+    more likely).
     """
     rho = eps * np.ones(shape=(q, q, q))
 
     for i in range(q):
         rho[i, i, i] = 1. - (q ** 2 -1) * eps
+
+    return rho
+
+
+def get_index_pair(index, q):
+    """
+    Computes the matrix indices corresponding to an index indexing the
+    corresponding flattened matrix (obtained concatenating the rows).
+    """
+    i1 = index // q
+    i2 = index % q
+
+    return i1, i2
+
+
+def compute_index_sets(q):
+    """
+    Given a matrix of shape (q, q), randomly extracts q mutually exclusive
+    sets containing q entries each.
+    """
+    index_sets = []
+    
+    pair_indices = list(range(q**2))
+    
+    for i in range(q):
+        index_sets.append(np.random.choice(pair_indices, q, replace=False).tolist())
+    
+        pair_indices = list(set(range(q**2)) - set(sum(index_sets, [])))
+    
+    index_sets = [
+        [
+            get_index_pair(index, q)
+            for index in block
+        ]
+        for block in index_sets
+    ]
+    
+    return index_sets
+
+
+def calcrho_uniform_index_sets(q):
+    """
+    Generates a transition tensor `rho` of shape (q, q, q) in which, for each
+    symbol `a`, the probability of generating a pair of children `(b, c)` is
+    uniformly spread among `q` pairs, with nonoverlapping sets of pairs
+    between different values of `a`.
+    """
+    index_sets = compute_index_sets(q)
+
+    rho = np.zeros((q, q, q))
+
+    for i, index_set in enumerate(index_sets):
+        rho[i, ...][tuple(np.transpose(index_set))] = 1. / q
 
     return rho
 
@@ -61,12 +126,14 @@ def calcrho(matrix_type, **kwargs):
         mixing = kwargs['mixing']
 
         rho = ((1. - mixing) * rho_s + mixing * rho_l)
+    elif matrix_type == 'uniform_index_sets':
+        rho = calcrho_uniform_index_sets(kwargs['q'])
     else:
         raise NotImplementedError(
             f'Generation of transition matrices of type {matrix_type} not '
             'implemented'
         )
-    
+
     return rho
 
 
