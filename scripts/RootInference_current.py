@@ -11,7 +11,7 @@ from sklearn.preprocessing import OneHotEncoder
 from scipy.special import softmax
 
 def get_M(q,sigma,epsilon): # Refined prescription, no collisions but noise and log-normal distribution
-    h = np.ones((q,q,q))*np.log(epsilon) # Actually parametrize with logits
+    h = sigma*np.random.randn(q,q,q) + np.log(epsilon) # Actually parametrize with logits
     M = np.empty((q,q,q))
     tuples = np.array([(i,j) for i in range(q) for j in range(q)])
     np.random.shuffle(tuples)
