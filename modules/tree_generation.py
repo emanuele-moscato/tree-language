@@ -1,4 +1,9 @@
+import sys
 import numpy as np
+
+sys.path.append('../scripts/')
+
+from RootInference_current import get_M, get_leaves
 
 
 def compute_rho_entropy(rho, q):
@@ -128,6 +133,12 @@ def calcrho(matrix_type, **kwargs):
         rho = ((1. - mixing) * rho_s + mixing * rho_l)
     elif matrix_type == 'uniform_index_sets':
         rho = calcrho_uniform_index_sets(kwargs['q'])
+    elif matrix_type == 'mixed_index_sets':
+        rho = get_M(
+            q=kwargs['q'],
+            sigma=kwargs['sigma'],
+            epsilon=kwargs['epsilon']
+        )
     else:
         raise NotImplementedError(
             f'Generation of transition matrices of type {matrix_type} not '
@@ -241,7 +252,7 @@ def gen_x(K,q,psum,root):
     return x
 
 
-def generate_dataset(rho, n_samples, k, q):
+def generate_trees(rho, n_samples, k, q):
     """
     Generates a dataset of size `n_samples` given a tree structure with `k`
     level (exlcuding the root, so `k+1` levels in total), a vocabulary of size

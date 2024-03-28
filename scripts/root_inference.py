@@ -1,11 +1,11 @@
 import sys
-import numpy as np
+import logging
 import torch
 
 sys.path.append('../modules/')
 
 from logger import get_logger
-from tree_generation import (calcrho, generate_dataset, compute_rho_entropy)
+from tree_generation import (calcrho, generate_trees, compute_rho_entropy)
 from models import FFNN
 from training import training_step
 from model_evaluation import compute_accuracy
@@ -15,55 +15,71 @@ from plotting import plot_training_history
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def main():
-    logger = get_logger('root_inference')
+def generate_dataset(
+        n_samples_training,
+        n_samples_test,
+        k,
+        matrix_type,
+        **grammar_kwargs
+    ):
+    """
+    Generates a grammar (transition tensors) and a dataset (set of leaves,
+    for training and testing) given the grammar.
+    """
+    logger = get_logger('generate_dataset')
 
-    # Generate data.
-    logger.info('Generating dataset')
+    logger.info('Generating training dataset')
 
-    matrix_type = 'simplified'
-    n_samples = 10000
-    k = 5
-    q = 3
-    sigma = 5.
-    eps = 0.02
+    q = grammar_kwargs['q']
 
-    rho = calcrho(matrix_type, q=q, eps=eps)
-    rho, trees, roots, leaves = generate_dataset(rho, n_samples, k, q)
+    rho = calcrho(matrix_type, **grammar_kwargs)
+    rho, trees, roots_train, leaves_train = generate_trees(
+        rho, n_samples_training, k, q
+    )
 
-    rho_entropy = compute_rho_entropy(rho, q)
+    logger.info('Generating test dataset')
 
-    logger.info(f'Entropy of the transition matrices: {rho_entropy}')
+    _, _, roots_test, leaves_test = generate_trees(
+        rho, n_samples_test, k, q
+    )
 
-    # Train-test split.
-    logger.info('Splitting training and test data')
+    return rho, roots_train, leaves_train, roots_test, leaves_test
 
-    test_frac = .2
 
-    test_indices = np.random.choice(range(leaves.shape[0]), int(leaves.shape[0] * test_frac), replace=False)
-    train_indices = np.array(list(set(range(leaves.shape[0])) - set(test_indices)))
+def data_preprocessing(roots_train, leaves_train, roots_test, leaves_test, q):
+    """
+    Preprocesses the training and test data (roots and leaves), which for now
+    is just onw-hot encoding.
+    """
+    logger = get_logger('data_preprocessing')
 
-    x_train = torch.nn.functional.one_hot(torch.from_numpy(leaves[train_indices, :]), num_classes=q).to(dtype=torch.float32).to(device=device)
-    y_train = torch.nn.functional.one_hot(torch.from_numpy(roots[train_indices]), num_classes=q).to(dtype=torch.float32).to(device=device)
-    x_test = torch.nn.functional.one_hot(torch.from_numpy(leaves[test_indices, :]), num_classes=q).to(dtype=torch.float32).to(device=device)
-    y_test = torch.nn.functional.one_hot(torch.from_numpy(roots[test_indices]), num_classes=q).to(dtype=torch.float32).to(device=device)
+    logger.info('Preprocessing data')
 
-    # Model definition.
-    logger.info('Instantiating model')
+    x_train = torch.nn.functional.one_hot(torch.from_numpy(leaves_train), num_classes=q).to(dtype=torch.float32).to(device=device)
+    y_train = torch.nn.functional.one_hot(torch.from_numpy(roots_train), num_classes=q).to(dtype=torch.float32).to(device=device)
 
-    dims = [leaves.shape[-1], 64, q]
+    x_test = torch.nn.functional.one_hot(torch.from_numpy(leaves_test), num_classes=q).to(dtype=torch.float32).to(device=device)
+    y_test = torch.nn.functional.one_hot(torch.from_numpy(roots_test), num_classes=q).to(dtype=torch.float32).to(device=device)
 
-    model = FFNN(
-        dims=dims,
-        activation='relu',
-        output_activation='softmax',
-        batch_normalization=False,
-        concatenate_last_dim=True
-    ).to(device=device)
+    return x_train, y_train, x_test, y_test
 
-    logger.info(f'N params (model): {sum(p.numel() for p in model.parameters())}')
 
-    loss_fn = torch.nn.CrossEntropyLoss()
+def train_model(
+        model,
+        training_data,
+        test_data,
+        n_epochs,
+        loss_fn=torch.nn.CrossEntropyLoss(),
+        learning_rate=1e-3,
+        batch_size=32,
+        early_stopper=None
+    ):
+    """
+    Trains a model.
+    """
+    logger = get_logger('train_model', level=logging.INFO)
+
+    logger.info('Training model')
 
     epoch_counter = 0
 
@@ -74,22 +90,13 @@ def main():
         'val_accuracy': []
     }
 
-    # Training.
-    logger.info('Training')
-
-    learning_rate = 1e-3
-    batch_size = 32
-
     optimizer = torch.optim.Adam(
         params=model.parameters(),
         lr=learning_rate
     )
 
-    # early_stopper = EarlyStopper(
-    #     patience=5,
-    #     min_delta=0.
-    # )
-    early_stopper = None
+    x_train, y_train = training_data
+    x_test, y_test = test_data
 
     training_loader = torch.utils.data.DataLoader(
         torch.utils.data.TensorDataset(x_train, y_train),
@@ -97,8 +104,6 @@ def main():
         shuffle=True,
         drop_last=True
     )
-
-    n_epochs = 150
 
     # Training loop.
     for i in range(n_epochs):
@@ -179,6 +184,68 @@ def main():
     training_history['val_accuracy'] = torch.tensor(training_history['val_accuracy']).tolist()
 
     logger.info(f'Last epoch: {epoch_counter}')
+
+    return model, training_history
+
+
+def main():
+    logger = get_logger('root_inference')
+
+    # Generate data.
+    n_samples_training = 8000
+    n_samples_test = 2000
+    k = 5
+    q = 4
+    matrix_type = 'mixed_index_sets'
+    grammar_kwargs = dict(
+        q=q,
+        sigma=0.1,
+        epsilon=0.0
+    )
+
+    rho, roots_train, leaves_train, roots_test, leaves_test = (
+        generate_dataset(
+            n_samples_training=n_samples_training,
+            n_samples_test=n_samples_test,
+            k=k,
+            matrix_type=matrix_type,
+            **grammar_kwargs
+        )
+    )
+    rho_entropy = compute_rho_entropy(rho, q)
+
+    logger.info(f'Entropy of the transition matrices: {rho_entropy}')
+
+    # Data preprocessing.
+    x_train, y_train, x_test, y_test = data_preprocessing(
+        roots_train, leaves_train, roots_test, leaves_test, q
+    )
+
+    # Model definition.
+    logger.info('Instantiating model')
+
+    dims = [leaves_train.shape[-1], 64, q]
+
+    model = FFNN(
+        dims=dims,
+        activation='relu',
+        output_activation='softmax',
+        batch_normalization=False,
+        concatenate_last_dim=True
+    ).to(device=device)
+
+    logger.info(f'N params (model): {sum(p.numel() for p in model.parameters())}')
+
+    model, training_history = train_model(
+        model,
+        training_data=(x_train, y_train),
+        test_data=(x_test, y_test),
+        n_epochs=150,
+        loss_fn=torch.nn.CrossEntropyLoss(),
+        learning_rate=1e-3,
+        batch_size=32,
+        early_stopper=None
+    )
 
     baseline_accuracy = 1. / q
 
