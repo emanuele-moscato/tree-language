@@ -1,6 +1,9 @@
 import numpy as np
 import torch
+import logging
 from logger import get_logger
+from tqdm import trange
+from model_evaluation import compute_accuracy
 
 
 def training_step(training_data, model, loss_fn, optimizer, val_data=None):
@@ -67,98 +70,132 @@ class EarlyStopper:
         return False
 
 
-def train_nn_model(
+def train_model(
+        model,
         training_data,
-        training_target,
-        nn_model,
-        loss_fn,
-        optimizer,
-        epochs,
-        batch_size=None,
-        early_stopper=None,
-        val_data=None,
-        val_target=None
+        test_data,
+        n_epochs,
+        loss_fn=torch.nn.CrossEntropyLoss(),
+        learning_rate=1e-3,
+        batch_size=32,
+        early_stopper=None
     ):
-    logger = get_logger(name='train_nn_model')
+    """
+    Trains a model.
+    """
+    logger = get_logger('train_model', level=logging.INFO)
+
+    logger.info('Training model')
 
     epoch_counter = 0
 
     training_history = {
         'training_loss': [],
-        'val_loss': []
+        'val_loss': [],
+        'training_accuracy': [],
+        'val_accuracy': []
     }
 
+    optimizer = torch.optim.Adam(
+        params=model.parameters(),
+        lr=learning_rate
+    )
+
+    x_train, y_train = training_data
+    x_test, y_test = test_data
+
     training_loader = torch.utils.data.DataLoader(
-        torch.utils.data.TensorDataset(training_data, training_target),
+        torch.utils.data.TensorDataset(x_train, y_train),
         batch_size=batch_size,
         shuffle=True,
         drop_last=True
     )
-    
-    n_batches_per_epoch = len(training_loader)
-    
-    logger.debug(f'Number of training steps per epoch: {n_batches_per_epoch}')
 
     # Training loop.
-    for i in range(epochs):
-        epoch_counter += 1
-    
-        training_loss_batches = []
-    
-        for batch in training_loader:
-            training_batch, training_targets = batch
-        
-            training_loss_batch, _ = training_step(
-                (training_batch, training_targets),
-                nn_model,
-                loss_fn,
-                optimizer,
-            )
-    
-            training_loss_batches.append(training_loss_batch)
-    
-        # Training loss for one epoch is computed as the average training
-        # loss over the batches.
-        training_loss = np.mean(training_loss_batches)
-    
-        training_history['training_loss'].append(float(training_loss))
+    with trange(n_epochs) as pbar:
+        for i in pbar:
+            epoch_counter += 1
 
-        if val_data is not None:
-            with torch.no_grad():
-                val_loss = loss_fn(nn_model(val_data), val_target).numpy()
-        else:
-            val_loss = None
+            training_loss_batches = []
+            training_accuracy_batches = []
 
-        training_history['val_loss'].append(
-            float(val_loss) if val_loss is not None else None
-        )
-        
-    
-        if (i < 10) or (i % 50 == 0):
-            logger.debug(
-                f'Epoch: {epoch_counter}'
-                f' | Training loss: {training_history["training_loss"][-1]}'
-                f' | Validation loss: {training_history["val_loss"][-1]}'
-            )
-
-        if (val_data is not None) and (early_stopper is not None):
-            if early_stopper.early_stop(training_history['val_loss'][-1]):
-                logger.debug(
-                    f'Early stopping epoch: {epoch_counter}'
-                    f' | Training loss: {training_history["training_loss"][-1]}'
-                    f' | Validation loss: {training_history["val_loss"][-1]}'
+            for batch in training_loader:
+                training_batch, training_targets = batch
+            
+                training_loss_batch, _ = training_step(
+                    (training_batch, training_targets),
+                    model,
+                    loss_fn,
+                    optimizer,
                 )
-                
-                break
-        elif (early_stopper is not None):
-            if early_stopper.early_stop(training_history['training_loss'][-1]):
-                logger.debug(
-                    f'Early stopping epoch: {epoch_counter}'
-                    f' | Training loss: {training_history["training_loss"][-1]}'
-                )
-                
-                break
+
+                training_loss_batches.append(training_loss_batch)
+
+                # Compute the training accuracy over the batch and append it to
+                # the corresponding list.
+                training_accuracy_batch = compute_accuracy(model(training_batch), training_targets)
+                training_accuracy_batches.append(training_accuracy_batch)
+
+            # Training loss and accuracy for one epoch is computed as the average
+            # training loss over the batches.
+            training_loss = torch.tensor(training_loss_batches).mean()
+            training_accuracy = torch.tensor(training_accuracy_batches).mean()
+
+            training_history['training_loss'].append(training_loss)
+            training_history['training_accuracy'].append(training_accuracy)
+
+            if x_test is not None:
+                with torch.no_grad():
+                    val_loss = loss_fn(model(x_test), y_test)
+                    val_accuracy = compute_accuracy(model(x_test), y_test)
+            else:
+                val_loss = None
+                val_accuracy = None
+
+            training_history['val_loss'].append(
+                val_loss if val_loss is not None else None
+            )
+
+            training_history['val_accuracy'].append(
+                val_accuracy if val_accuracy is not None else None
+            )
+
+            pbar.set_postfix(
+                training_loss=training_history['training_loss'][-1],
+                training_accuracy=training_history['training_accuracy'][-1],
+                val_loss=training_history['val_loss'][-1],
+                val_accuracy=training_history['val_accuracy'][-1]
+            )
+            # if (i < 50) or (i % 50 == 0):
+            #     logger.debug(
+            #         f'Epoch: {epoch_counter}'
+            #         f' | Training loss: {training_history["training_loss"][-1]}'
+            #         f' | Validation loss: {training_history["val_loss"][-1]}'
+            #     )
+
+            if (x_test is not None) and (early_stopper is not None):
+                if early_stopper.early_stop(training_history['val_loss'][-1]):
+                    logger.debug(
+                        f'Early stopping epoch: {epoch_counter}'
+                        f' | Training loss: {training_history["training_loss"][-1]}'
+                        f' | Validation loss: {training_history["val_loss"][-1]}'
+                    )
+                    
+                    break
+            elif (early_stopper is not None):
+                if early_stopper.early_stop(training_history['training_loss'][-1]):
+                    logger.debug(
+                        f'Early stopping epoch: {epoch_counter}'
+                        f' | Training loss: {training_history["training_loss"][-1]}'
+                    )
+                    
+                    break
+
+    training_history['training_loss'] = torch.tensor(training_history['training_loss']).tolist()
+    training_history['training_accuracy'] = torch.tensor(training_history['training_accuracy']).tolist()
+    training_history['val_loss'] = torch.tensor(training_history['val_loss']).tolist()
+    training_history['val_accuracy'] = torch.tensor(training_history['val_accuracy']).tolist()
 
     logger.info(f'Last epoch: {epoch_counter}')
 
-    return training_history
+    return model, training_history

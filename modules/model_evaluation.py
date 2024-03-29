@@ -7,10 +7,6 @@ from sklearn.metrics import (mean_squared_error, mean_absolute_error,
 import matplotlib.pyplot as plt
 import seaborn as sns
 from logger import get_logger
-# from data_preprocessing_model import get_train_val_data, preprocess_data
-from models import FFNN
-from training import train_nn_model, EarlyStopper
-# from target_quantization import map_classes_to_values
 
 
 sns.set_theme()
@@ -392,8 +388,6 @@ def save_experiment_info(experiment_catalog_path, **kwargs):
         experiment_catalog = new_experiment
     else:
         exp_id = new_experiment['experiment_id'].iloc[0]
-
-        print(exp_id)
 
         if exp_id in experiment_catalog['experiment_id'].tolist():
             raise Exception(

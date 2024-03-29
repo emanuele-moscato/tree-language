@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+from logger import get_logger
 
 sys.path.append('../scripts/')
 
@@ -279,3 +280,34 @@ def generate_trees(rho, n_samples, k, q):
     ])
 
     return rho, trees, roots, leaves
+
+
+def generate_dataset(
+        n_samples_training,
+        n_samples_test,
+        k,
+        matrix_type,
+        **grammar_kwargs
+    ):
+    """
+    Generates a grammar (transition tensors) and a dataset (set of leaves,
+    for training and testing) given the grammar.
+    """
+    logger = get_logger('generate_dataset')
+
+    logger.info('Generating training dataset')
+
+    q = grammar_kwargs['q']
+
+    rho = calcrho(matrix_type, **grammar_kwargs)
+    rho, trees, roots_train, leaves_train = generate_trees(
+        rho, n_samples_training, k, q
+    )
+
+    logger.info('Generating test dataset')
+
+    _, _, roots_test, leaves_test = generate_trees(
+        rho, n_samples_test, k, q
+    )
+
+    return rho, roots_train, leaves_train, roots_test, leaves_test
