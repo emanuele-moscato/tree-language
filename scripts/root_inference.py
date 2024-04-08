@@ -7,7 +7,8 @@ import torch
 sys.path.append('../modules/')
 
 from logger import get_logger
-from tree_generation import (generate_dataset, compute_rho_entropy)
+from tree_generation import (generate_dataset_jerome, generate_dataset,
+                             compute_rho_entropy)
 from data_preprocessing import preprocess_data
 from models import FFNN
 from training import train_model
@@ -18,7 +19,7 @@ from plotting import plot_training_history
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-DATA_TARGET_DIR = '../data/nn_nb_bp_comparison'
+DATA_TARGET_DIR = '../data/nn_nb_bp_comparison_jerome_generation/'
 PARAMS_SOURCE_PATH = '../data/params_to_test_sigma_eps/NB_bestperfs.npy'
 EXPERIMENT_CATALOG_PATH = os.path.join(
     DATA_TARGET_DIR, 'experiment_catalog.csv')
@@ -28,10 +29,10 @@ def main():
     logger = get_logger(
         'root_inference',
         level=logging.INFO,
-        log_file_path='../logs/nn_nb_bp_comparison_best_logs.txt'
+        log_file_path='../logs/nn_nb_bp_comparison_jerome_generation.txt'
     )
 
-    # Read parameters from file.
+    # # Read parameters from file.
     seeds, epsilons, sigmas, nb_accuracies, bp_accuracies = np.load(
         PARAMS_SOURCE_PATH,
         allow_pickle=True
@@ -56,28 +57,38 @@ def main():
             )
 
             # Generate data.
-            n_samples_training = 5000
-            n_samples_test = 2000
+            n_samples_training = 4000
+            n_samples_test = 4000
             k = 4
             q = 4
             matrix_type = 'mixed_index_sets'
-            grammar_kwargs = dict(
+            # grammar_kwargs = dict(
+            #     q=q,
+            #     sigma=sigma,
+            #     epsilon=epsilon
+            # )
+
+            # np.random.seed(seed)
+
+            # rho, roots_train, leaves_train, roots_test, leaves_test = (
+            #     generate_dataset(
+            #         n_samples_training=n_samples_training,
+            #         n_samples_test=n_samples_test,
+            #         k=k,
+            #         matrix_type=matrix_type,
+            #         **grammar_kwargs
+            #     )
+            # )
+            rho, roots_train, leaves_train, roots_test, leaves_test = generate_dataset_jerome(
+                seed=seed,
                 q=q,
+                k=k,
+                epsilon=epsilon,
                 sigma=sigma,
-                epsilon=epsilon
+                n_samples_training=n_samples_training,
+                n_samples_test=n_samples_test
             )
 
-            np.random.seed(seed)
-
-            rho, roots_train, leaves_train, roots_test, leaves_test = (
-                generate_dataset(
-                    n_samples_training=n_samples_training,
-                    n_samples_test=n_samples_test,
-                    k=k,
-                    matrix_type=matrix_type,
-                    **grammar_kwargs
-                )
-            )
             rho_entropy = compute_rho_entropy(rho, q)
 
             logger.info(f'Entropy of the transition matrices: {rho_entropy}')
@@ -139,8 +150,8 @@ def main():
                 np_seed=seed,
                 naive_bayes_accuracy=nb_accuracy,
                 bp_accuracy=bp_accuracy,
-                sigma=grammar_kwargs['sigma'],
-                epsilon=grammar_kwargs['epsilon'],
+                sigma=sigma,
+                epsilon=epsilon,
                 n_samples_training=n_samples_training,
                 n_samples_test=n_samples_test,
                 **model_params,
@@ -166,6 +177,8 @@ def main():
                 savefig_dir=plots_dir_exp,
                 exp_id=experiment_id
             )
+
+            del model
 
 
 if __name__ == '__main__':

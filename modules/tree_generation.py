@@ -311,3 +311,39 @@ def generate_dataset(
     )
 
     return rho, roots_train, leaves_train, roots_test, leaves_test
+
+
+def generate_dataset_jerome(seed, q, k, epsilon, sigma, n_samples_training, n_samples_test):
+    np.random.seed(seed)
+
+    roots_test = []
+    leaves_test = []
+
+    m = get_M(
+        q=q,
+        sigma=sigma,
+        epsilon=epsilon
+    )
+
+    for _ in range(n_samples_test):
+        x0 = np.random.randint(q)
+
+        roots_test.append(x0)
+        leaves_test.append(get_leaves(x0, m, k))
+
+    roots_test = np.array(roots_test).astype(np.int64)
+    leaves_test = np.array(leaves_test).astype(np.int64)
+
+    roots_train = []
+    leaves_train = []
+
+    for _ in range(n_samples_training):
+        x0 = np.random.randint(q)
+
+        roots_train.append(x0)
+        leaves_train.append(get_leaves(x0, m, k))
+
+    roots_train = np.array(roots_train).astype(np.int64)
+    leaves_train = np.array(leaves_train).astype(np.int64)
+
+    return m, roots_train, leaves_train, roots_test, leaves_test
