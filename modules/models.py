@@ -108,6 +108,9 @@ class FFNN(nn.Module):
     
 
 class PositionalEncoding(nn.Module):
+    """
+    PyTorch module implementing sinusoidal positional encoding.
+    """
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
@@ -129,6 +132,14 @@ class PositionalEncoding(nn.Module):
 
 
 class MeanAggLayer(nn.Module):
+    """
+    PyTorch module implementing averaging over the second dimension of a
+    tensor. Example: for tensors of shape `(batch_shape, seq_len, model_dim)`
+    (as in transformers), this takes the average over the `seq_len` dimension
+    (i.e. over the tokens in the sequences) in order to obtain tensor of
+    shape `(batch_shape, model_dim)`, i.e. a "sentence embedding" vector of
+    dimension `(model_dim,)` for each sample in the batch.
+    """
     def __init__(self, seq_len):
         super().__init__()
             
@@ -141,6 +152,10 @@ class MeanAggLayer(nn.Module):
 
 
 class TransformerClassifier(nn.Module):
+    """
+    A transformer-based classifier (encoder only), using semanting embedding
+    and sinusoidal positional embeddings and with a final feed-forward NN.
+    """
     def __init__(
         self,
         seq_len,
@@ -181,27 +196,30 @@ class TransformerClassifier(nn.Module):
             num_layers=n_tranformer_layers
         )
 
+        # Aggregation/stacking of token representations (the input dimension
+        # of the final layer is adapted accordingly).
         if self.embedding_agg == 'mean':
             self.embedding_agg_layer = MeanAggLayer(
                 seq_len=self.seq_len
             )
 
-            # Final FFNN.
-            self.final_layer = nn.Linear(
-                embedding_size,
-                n_classes
-            )
+            final_layer_input_dim = embedding_size
+
         elif self.embedding_agg == 'flatten':
             self.embedding_agg_layer = nn.Flatten(start_dim=-2, end_dim=-1)
 
-            self.final_layer = nn.Linear(
-                seq_len * embedding_size,
-                n_classes
-            )
+            final_layer_input_dim = seq_len * embedding_size
+
         else:
             raise NotImplementedError(
                 f'Embedding aggregation {embedding_agg} not implemented'
             )
+        
+        # Final FFNN.
+        self.final_layer = nn.Linear(
+            final_layer_input_dim,
+            n_classes
+        )
 
     def forward(self, x):
         x = self.input_embedding(x)

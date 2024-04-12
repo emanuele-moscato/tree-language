@@ -65,12 +65,27 @@ def plot_training_history(
             )
 
         if baseline_accuracy is not None:
-            sns.lineplot(
-                x=range(len(training_history[accuracy_metric])),
-                y=baseline_accuracy,
-                label='Baseline accuracy',
-                color=sns.color_palette()[i+1]
-            )
+            if isinstance(baseline_accuracy, float):
+                baseline_accuracy = [baseline_accuracy]
+
+            if isinstance(baseline_accuracy, list):
+                for j, ba in enumerate(baseline_accuracy):
+                    sns.lineplot(
+                        x=range(len(training_history[accuracy_metric])),
+                        y=ba,
+                        label='Baseline accuracy',
+                        color=sns.color_palette()[i+j+1]
+                    )
+            elif isinstance(baseline_accuracy, dict):
+                print('f')
+                for j, (label, ba) in enumerate(baseline_accuracy.items()):
+                    print(label, ba)
+                    sns.lineplot(
+                        x=range(len(training_history[accuracy_metric])),
+                        y=ba,
+                        label=label,
+                        color=sns.color_palette()[i+j+1],
+                    )
 
         plt.legend()
 
