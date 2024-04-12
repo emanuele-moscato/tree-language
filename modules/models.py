@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -104,3 +105,112 @@ class FFNN(nn.Module):
             out = activation(layer(out))
 
         return out
+    
+
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-np.log(10000.0) / d_model))
+        pe = torch.zeros(1, max_len, d_model)
+        pe[0, :, 0::2] = torch.sin(position * div_term)
+        pe[0, :, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Arguments:
+            x: Tensor, shape ``[seq_len, batch_size, embedding_dim]``
+        """
+        x = x + self.pe[:, :x.size(1), :]
+        return self.dropout(x)
+
+
+class MeanAggLayer(nn.Module):
+    def __init__(self, seq_len):
+        super().__init__()
+            
+        self.avg_pool = nn.AvgPool1d(
+            kernel_size=seq_len,
+        )
+
+    def forward(self, x):
+        return self.avg_pool(torch.permute(x, dims=(0, 2, 1))).squeeze()
+
+
+class TransformerClassifier(nn.Module):
+    def __init__(
+        self,
+        seq_len,
+        embedding_size,
+        n_tranformer_layers,
+        n_heads,
+        n_classes,
+        embedding_agg='mean'
+    ):
+        super().__init__()
+
+        self.seq_len = seq_len
+        self.embedding_size = embedding_size
+        self.n_tranformer_layers = n_tranformer_layers
+        self.n_heads = n_heads
+        self.n_classes = n_classes
+        self.embedding_agg = embedding_agg
+
+        # Embedding.
+        self.input_embedding = nn.Embedding(n_classes, embedding_size)
+        self.positional_embedding = PositionalEncoding(
+            d_model=embedding_size,
+            dropout=0.1,
+            max_len=5000
+        )
+
+        # Single encoder layer.
+        self.encoder_layer = nn.TransformerEncoderLayer(
+            d_model=embedding_size,
+            nhead=n_heads,
+            dim_feedforward=2048,
+            batch_first=True
+        )
+
+        # Stack of encoder layers.
+        self.transformer_encoder = nn.TransformerEncoder(
+            self.encoder_layer,
+            num_layers=n_tranformer_layers
+        )
+
+        if self.embedding_agg == 'mean':
+            self.embedding_agg_layer = MeanAggLayer(
+                seq_len=self.seq_len
+            )
+
+            # Final FFNN.
+            self.final_layer = nn.Linear(
+                embedding_size,
+                n_classes
+            )
+        elif self.embedding_agg == 'flatten':
+            self.embedding_agg_layer = nn.Flatten(start_dim=-2, end_dim=-1)
+
+            self.final_layer = nn.Linear(
+                seq_len * embedding_size,
+                n_classes
+            )
+        else:
+            raise NotImplementedError(
+                f'Embedding aggregation {embedding_agg} not implemented'
+            )
+
+    def forward(self, x):
+        x = self.input_embedding(x)
+        x = self.positional_embedding(x)
+
+        x = self.transformer_encoder(x)
+
+        x = self.embedding_agg_layer(x)
+
+        x = self.final_layer(x)
+
+        return x
