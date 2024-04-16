@@ -19,7 +19,7 @@ from plotting import plot_training_history
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-DATA_TARGET_DIR = '../data/nn_nb_bp_comparison_jerome_generation/'
+DATA_TARGET_DIR = '../data/ffnn_transformer_regime/'
 PARAMS_SOURCE_PATH = '../data/params_to_test_sigma_eps/NB_bestperfs.npy'
 EXPERIMENT_CATALOG_PATH = os.path.join(
     DATA_TARGET_DIR, 'experiment_catalog.csv')
@@ -29,14 +29,20 @@ def main():
     logger = get_logger(
         'root_inference',
         level=logging.INFO,
-        log_file_path='../logs/nn_nb_bp_comparison_jerome_generation.txt'
+        # log_file_path='../logs/nn_nb_bp_comparison_jerome_generation.txt'
     )
 
     # # Read parameters from file.
-    seeds, epsilons, sigmas, nb_accuracies, bp_accuracies = np.load(
-        PARAMS_SOURCE_PATH,
-        allow_pickle=True
-    )
+    # seeds, epsilons, sigmas, nb_accuracies, bp_accuracies = np.load(
+    #     PARAMS_SOURCE_PATH,
+    #     allow_pickle=True
+    # )
+    seeds = np.array([[1]])
+    epsilons = np.array([0.0])
+    sigmas = [1.0]
+    nb_accuracies = np.array([[0.64]])
+    bp_accuracies = np.array([[1.]])
+
 
     # i: index on epsilons.
     for i in range(seeds.shape[0]):
@@ -48,7 +54,7 @@ def main():
             nb_accuracy = nb_accuracies[i, j]
             bp_accuracy = bp_accuracies[i, j]
 
-            experiment_id = f'nb_best_eps{i}_sigma{j}'
+            experiment_id = f'ffnn_transformer_regime_seed=1'
 
             logger.info(
                 f'Experiment {i * seeds.shape[1] +j+1} of '
@@ -57,8 +63,8 @@ def main():
             )
 
             # Generate data.
-            n_samples_training = 4000
-            n_samples_test = 4000
+            n_samples_training = 500
+            n_samples_test = 9500
             k = 4
             q = 4
             matrix_type = 'mixed_index_sets'
@@ -88,6 +94,21 @@ def main():
                 n_samples_training=n_samples_training,
                 n_samples_test=n_samples_test
             )
+            # (
+            #     q,
+            #     k,
+            #     sigma,
+            #     epsilon,
+            #     x0s,
+            #     xis,
+            #     rho
+            # ) = np.load('../data/labeled_data_{}_{}_{}_{:.5f}.npy'.format(q,k,sigma,epsilon), allow_pickle=True)
+            # x0 = x0s[:,seed]
+            # xi = xis[:,:,seed]
+            # leaves_train = xi[:,:500].T
+            # roots_train = x0[:500]
+            # leaves_test = xi[:,500:].T
+            # roots_test = x0[500:]
 
             rho_entropy = compute_rho_entropy(rho, q)
 
@@ -95,7 +116,7 @@ def main():
 
             # Data preprocessing.
             x_train, y_train, x_test, y_test = preprocess_data(
-                roots_train, leaves_train, roots_test, leaves_test, q, device
+                roots_train, leaves_train, roots_test, leaves_test, q, device, dtype=torch.int64
             )
 
             # Model definition.
@@ -118,7 +139,7 @@ def main():
             logger.info(f'N params (model): {n_params_model}')
 
             training_params = dict(
-                n_epochs=150,
+                n_epochs=500,
                 learning_rate=1e-3,
                 batch_size=32,
             )
@@ -141,28 +162,28 @@ def main():
                 f'(baseline: {baseline_accuracy})'
             )
 
-            experiment_params = dict(
-                experiment_id=experiment_id,
-                q=q,
-                k=k,
-                matrix_type=matrix_type,
-                matrix_entropy=rho_entropy,
-                np_seed=seed,
-                naive_bayes_accuracy=nb_accuracy,
-                bp_accuracy=bp_accuracy,
-                sigma=sigma,
-                epsilon=epsilon,
-                n_samples_training=n_samples_training,
-                n_samples_test=n_samples_test,
-                **model_params,
-                n_params_model=n_params_model,
-                **training_params,
-                final_training_accuracy=training_history["training_accuracy"][-1],
-                final_test_accuracy=training_history["val_accuracy"][-1],
-                baseline_accuracy=baseline_accuracy
-            )
+            # experiment_params = dict(
+            #     experiment_id=experiment_id,
+            #     q=q,
+            #     k=k,
+            #     matrix_type=matrix_type,
+            #     matrix_entropy=rho_entropy,
+            #     np_seed=seed,
+            #     naive_bayes_accuracy=nb_accuracy,
+            #     bp_accuracy=bp_accuracy,
+            #     sigma=sigma,
+            #     epsilon=epsilon,
+            #     n_samples_training=n_samples_training,
+            #     n_samples_test=n_samples_test,
+            #     **model_params,
+            #     n_params_model=n_params_model,
+            #     **training_params,
+            #     final_training_accuracy=training_history["training_accuracy"][-1],
+            #     final_test_accuracy=training_history["val_accuracy"][-1],
+            #     baseline_accuracy=baseline_accuracy
+            # )
 
-            save_experiment_info(EXPERIMENT_CATALOG_PATH, **experiment_params)
+            # save_experiment_info(EXPERIMENT_CATALOG_PATH, **experiment_params)
 
             plots_dir_exp = os.path.join(
                 DATA_TARGET_DIR, f'plots_{experiment_id}/'

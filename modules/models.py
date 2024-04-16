@@ -163,7 +163,10 @@ class TransformerClassifier(nn.Module):
         n_tranformer_layers,
         n_heads,
         n_classes,
-        embedding_agg='mean'
+        embedding_agg='mean',
+        decoder_hidden_sizes=[],
+        decoder_activation='relu',
+        decoder_output_activation='identity'
     ):
         super().__init__()
 
@@ -173,6 +176,10 @@ class TransformerClassifier(nn.Module):
         self.n_heads = n_heads
         self.n_classes = n_classes
         self.embedding_agg = embedding_agg
+        self.decoder_hidden_sizes = decoder_hidden_sizes
+        self.decoder_activation = decoder_activation
+        self.decoder_output_activation = decoder_output_activation
+
 
         # Embedding.
         self.input_embedding = nn.Embedding(n_classes, embedding_size)
@@ -203,32 +210,53 @@ class TransformerClassifier(nn.Module):
                 seq_len=self.seq_len
             )
 
-            final_layer_input_dim = embedding_size
+            decoder_input_dim = embedding_size
 
         elif self.embedding_agg == 'flatten':
             self.embedding_agg_layer = nn.Flatten(start_dim=-2, end_dim=-1)
 
-            final_layer_input_dim = seq_len * embedding_size
+            decoder_input_dim = seq_len * embedding_size
 
         else:
             raise NotImplementedError(
                 f'Embedding aggregation {embedding_agg} not implemented'
             )
         
-        # Final FFNN.
-        self.final_layer = nn.Linear(
-            final_layer_input_dim,
-            n_classes
+        # Decoder (FFNN).
+        decoder_dims = (
+            [decoder_input_dim]
+            + decoder_hidden_sizes
+            + [n_classes]
         )
 
-    def forward(self, x):
+        self.decoder = FFNN(
+            dims=decoder_dims,
+            activation=decoder_activation,
+            output_activation=decoder_output_activation,
+            batch_normalization=False,
+            concatenate_last_dim=False
+        )
+
+    def forward(self, x, src_key_padding_mask=None):
+        """
+        Model's forward pass.
+
+        Note: `src_key_padding_mask` should have shape `(batch_size, seq_len)`
+              and be a boolean mask with value `True` correspnding to the
+              positions to mask along each sequence in the batch.
+
+              See: https://stackoverflow.com/questions/62170439/difference-between-src-mask-and-src-key-padding-mask
+        """
         x = self.input_embedding(x)
         x = self.positional_embedding(x)
 
-        x = self.transformer_encoder(x)
+        x = self.transformer_encoder(
+            x,
+            src_key_padding_mask=src_key_padding_mask
+        )
 
         x = self.embedding_agg_layer(x)
 
-        x = self.final_layer(x)
+        x = self.decoder(x)
 
         return x
