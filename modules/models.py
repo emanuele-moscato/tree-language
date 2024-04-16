@@ -162,7 +162,8 @@ class TransformerClassifier(nn.Module):
         embedding_size,
         n_tranformer_layers,
         n_heads,
-        n_classes,
+        vocab_size,
+        n_special_tokens=0,  # We assume the special tokens correspond to the last `n_special_tokens` indices.
         embedding_agg='mean',
         decoder_hidden_sizes=[],
         decoder_activation='relu',
@@ -174,7 +175,7 @@ class TransformerClassifier(nn.Module):
         self.embedding_size = embedding_size
         self.n_tranformer_layers = n_tranformer_layers
         self.n_heads = n_heads
-        self.n_classes = n_classes
+        self.vocab_size = vocab_size
         self.embedding_agg = embedding_agg
         self.decoder_hidden_sizes = decoder_hidden_sizes
         self.decoder_activation = decoder_activation
@@ -182,7 +183,7 @@ class TransformerClassifier(nn.Module):
 
 
         # Embedding.
-        self.input_embedding = nn.Embedding(n_classes, embedding_size)
+        self.input_embedding = nn.Embedding(vocab_size, embedding_size)
         self.positional_embedding = PositionalEncoding(
             d_model=embedding_size,
             dropout=0.1,
@@ -211,12 +212,25 @@ class TransformerClassifier(nn.Module):
             )
 
             decoder_input_dim = embedding_size
-
         elif self.embedding_agg == 'flatten':
             self.embedding_agg_layer = nn.Flatten(start_dim=-2, end_dim=-1)
 
             decoder_input_dim = seq_len * embedding_size
+        elif (
+            (self.embedding_agg == 'flatten')
+            or (self.embedding_agg is None)
+        ):
+            # Note: in this case THE OUTPUT SHAPE FOR THE WHOLE MODEL is
+            #       different (used e.g. for (masked) language modeling).
+            #       Example: if the input shape is 
+            #                   (batch_size, seq_len, hidden_dim)
+            #                then the output shape is
+            #                   (batch_size, seq_len, vocab_size),
+            #                where in this case we need to exclude the special
+            #                tokens.
+            self.embedding_agg_layer = nn.Identity()
 
+            decoder_input_dim = embedding_size
         else:
             raise NotImplementedError(
                 f'Embedding aggregation {embedding_agg} not implemented'
@@ -226,7 +240,7 @@ class TransformerClassifier(nn.Module):
         decoder_dims = (
             [decoder_input_dim]
             + decoder_hidden_sizes
-            + [n_classes]
+            + [vocab_size - n_special_tokens]
         )
 
         self.decoder = FFNN(
