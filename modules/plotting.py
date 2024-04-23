@@ -25,16 +25,16 @@ def plot_training_history(
         label='Training loss'
     )
 
-    sns.lineplot(
-        x=range(len(training_history['val_loss'])),
-        y=training_history['val_loss'],
-        label='Validation loss'
-    )
+    plot_title = 'Loss VS epoch'
 
-    plot_title = (
-        'Loss VS epoch'
-        f'\nFinal val loss: {training_history["val_loss"][-1]}'
-    )
+    if 'val_loss' in training_history.keys():
+        sns.lineplot(
+            x=range(len(training_history['val_loss'])),
+            y=training_history['val_loss'],
+            label='Validation loss'
+        )
+
+        plot_title += f'\nFinal val loss: {training_history["val_loss"][-1]}'
 
     plt.title(plot_title)
     plt.xlabel('Epoch')

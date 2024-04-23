@@ -163,6 +163,7 @@ class TransformerClassifier(nn.Module):
         n_tranformer_layers,
         n_heads,
         vocab_size,
+        encoder_dim_feedforward=2048,
         positional_encoding=True,
         n_special_tokens=0,  # We assume the special tokens correspond to the last `n_special_tokens` indices.
         embedding_agg='mean',
@@ -178,6 +179,7 @@ class TransformerClassifier(nn.Module):
         self.n_tranformer_layers = n_tranformer_layers
         self.n_heads = n_heads
         self.vocab_size = vocab_size
+        self.encoder_dim_feedforward = encoder_dim_feedforward
         self.embedding_agg = embedding_agg
         self.decoder_hidden_sizes = decoder_hidden_sizes
         self.decoder_activation = decoder_activation
@@ -199,7 +201,7 @@ class TransformerClassifier(nn.Module):
         self.encoder_layer = nn.TransformerEncoderLayer(
             d_model=embedding_size,
             nhead=n_heads,
-            dim_feedforward=2048,
+            dim_feedforward=encoder_dim_feedforward,
             batch_first=True
         )
 

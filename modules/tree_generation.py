@@ -1,10 +1,8 @@
 import sys
 import numpy as np
+from scipy.special import softmax
+from tqdm import tqdm
 from logger import get_logger
-
-sys.path.append('../scripts/')
-
-from RootInference_current import get_M, get_leaves
 
 
 def compute_rho_entropy(rho, q):
@@ -114,6 +112,34 @@ def calcrho_uniform_index_sets(q):
         rho[i, ...][tuple(np.transpose(index_set))] = 1. / q
 
     return rho
+
+
+def get_M(q,sigma,epsilon): # Refined prescription, no collisions but noise and log-normal distribution
+    h = sigma*np.random.randn(q,q,q) + np.log(epsilon) # Actually parametrize with logits
+    M = np.empty((q,q,q))
+    tuples = np.array([(i,j) for i in range(q) for j in range(q)])
+    np.random.shuffle(tuples)
+    for i in range(q):
+        for j in range(i*q,(i+1)*q):
+            k,l = tuples[j]
+            h[i,k,l] = sigma*np.random.randn()
+        M[i,:,:] = softmax(h[i,:,:])
+    return M
+
+def get_leaves(x0,M,l):
+    # Get the leaves of a tree of depth m
+    def get_branches(S,M):
+        # Get the two branches from a given state S
+        p_flat = M[S,:,:].ravel()
+        ind = np.arange(len(p_flat))
+        return np.unravel_index(np.random.choice(ind, p=p_flat),M[S,:,:].shape)
+    x = np.array([x0],dtype=np.int8) # Initialize the tree
+    for i in range(1,l+1):
+        x_new = np.empty(2**i,dtype=np.int8)
+        for j in range(len(x)):
+            x_new[2*j],x_new[2*j+1] = get_branches(x[j],M)
+        x = x_new
+    return x
 
 
 def calcrho(matrix_type, **kwargs):
@@ -314,6 +340,10 @@ def generate_dataset(
 
 
 def generate_dataset_jerome(seed, q, k, epsilon, sigma, n_samples_training, n_samples_test):
+    """
+    """
+    logger = get_logger('generate_dataset_jerome')
+
     np.random.seed(seed)
 
     roots_test = []
@@ -325,7 +355,9 @@ def generate_dataset_jerome(seed, q, k, epsilon, sigma, n_samples_training, n_sa
         epsilon=epsilon
     )
 
-    for _ in range(n_samples_test):
+    logger.info('Generating test samples')
+
+    for _ in tqdm(range(n_samples_test)):
         x0 = np.random.randint(q)
 
         roots_test.append(x0)
@@ -337,7 +369,9 @@ def generate_dataset_jerome(seed, q, k, epsilon, sigma, n_samples_training, n_sa
     roots_train = []
     leaves_train = []
 
-    for _ in range(n_samples_training):
+    logger.info('Generating training samples')
+
+    for _ in tqdm(range(n_samples_training)):
         x0 = np.random.randint(q)
 
         roots_train.append(x0)
