@@ -6,7 +6,7 @@ from sklearn.metrics import (mean_squared_error, mean_absolute_error,
     mean_absolute_percentage_error)
 import matplotlib.pyplot as plt
 import seaborn as sns
-from logger import get_logger
+from logger_tree_language import get_logger
 
 
 sns.set_theme()

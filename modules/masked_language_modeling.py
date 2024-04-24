@@ -1,7 +1,7 @@
 import logging
 from tqdm import trange
 import torch
-from logger import get_logger
+from logger_tree_language import get_logger
 
 
 def mask_sequences(sequences, mask_rate, reshaped_mask_idx, device):

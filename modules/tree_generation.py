@@ -2,7 +2,7 @@ import sys
 import numpy as np
 from scipy.special import softmax
 from tqdm import tqdm
-from logger import get_logger
+from logger_tree_language import get_logger
 
 
 def compute_rho_entropy(rho, q):

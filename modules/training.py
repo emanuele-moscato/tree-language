@@ -1,9 +1,9 @@
 import numpy as np
 import torch
 import logging
-from logger import get_logger
+from logger_tree_language import get_logger
 from tqdm import trange
-from model_evaluation import compute_accuracy
+from model_evaluation_tree_language import compute_accuracy
 
 
 def training_step(training_data, model, loss_fn, optimizer, val_data=None):

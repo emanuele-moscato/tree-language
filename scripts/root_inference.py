@@ -6,13 +6,13 @@ import torch
 
 sys.path.append('../modules/')
 
-from logger import get_logger
+from logger_tree_language import get_logger
 from tree_generation import (generate_dataset_jerome, generate_dataset,
                              compute_rho_entropy)
 from data_preprocessing import preprocess_data
 from models import FFNN
 from training import train_model
-from model_evaluation import load_experiment_catalog, save_experiment_info
+from model_evaluation_tree_language import load_experiment_catalog, save_experiment_info
 from plotting import plot_training_history
 
 

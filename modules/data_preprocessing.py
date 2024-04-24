@@ -1,5 +1,5 @@
 import torch
-from logger import get_logger
+from logger_tree_language import get_logger
 
 
 def preprocess_data(roots_train, leaves_train, roots_test, leaves_test, q, device, dtype=torch.float32):
