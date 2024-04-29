@@ -73,26 +73,41 @@ def train_model_mlm(
         batch_size,
         mask_rate,
         mask_idx,
-        device
+        device,
+        optimizer=None,
+        training_history=None
     ):
     """
-    Trains a model for mask language modeling.
+    Trains a model for mask language modeling. Pass an optimizer to resume
+    training with that optimizer, otherwise a new one is initialized.
     """
     logger = get_logger('train_model_mlm', level=logging.INFO)
 
     logger.info('Training model')
 
-    epoch_counter = 0
+    if training_history is None:
+        epoch_counter = 0
 
-    training_history = {
-        'training_loss': [],
-        'training_accuracy': [],
-    }
+        training_history = {
+            'training_loss': [],
+            'training_accuracy': [],
+        }
+    else:
+        # Resume training from the last epoch, as inferred by the length of
+        # the provided training history.
+        epoch_counter = len(
+            training_history[list(training_history.keys())[0]]
+        )
 
-    optimizer = torch.optim.Adam(
-        params=model.parameters(),
-        lr=learning_rate
-    )
+        logger.info(f'Resuming training from epoch {epoch_counter}')
+
+    if optimizer is None:
+        logger.info('Instantiating a new optimizer')
+
+        optimizer = torch.optim.Adam(
+            params=model.parameters(),
+            lr=learning_rate
+        )
 
     loss_fn = loss_fn = torch.nn.CrossEntropyLoss(
         reduction='none'
@@ -113,7 +128,7 @@ def train_model_mlm(
 
     # Training loop.
     with trange(n_epochs) as pbar:
-        for i in pbar:
+        for _ in pbar:
             epoch_counter += 1
 
             training_loss_batches = []
@@ -170,4 +185,4 @@ def train_model_mlm(
 
     logger.info(f'Last epoch: {epoch_counter}')
 
-    return model, training_history
+    return model, optimizer, training_history
