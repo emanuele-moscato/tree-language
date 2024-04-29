@@ -67,3 +67,58 @@ def load_checkpoint(model_dir, checkpoint_id, device):
     optimizer_to(optimizer_loaded, device)
 
     return model_loaded, optimizer_loaded, training_history_loaded
+
+
+def create_linear_lr_schedulers(
+        optimizer,
+        n_updates_warmup,
+        n_updates_decay,
+        warmup_start_factor=0.1,
+        decay_end_factor=1e-2
+    ):
+    """
+    Returns the appropriate learning rate schedulers to perform a linear
+    warmup for the first `n_updates_warmup` updates and a linear decay
+    for the later `n_updates_decay` updates. Everything is thought in
+    terms of the PEAK VALUE of the learning rate, which is the one passed
+    at instantiation time to the optimizer, so that the learning rate
+        * starts at `peak_lr * warmup_start_factor`,
+        * reaches `peak_lr` linearly over the first `n_updates_warmup`
+          updates,
+        * reaches `peak_lr * decay_end_factor` linearly over the next
+          `n_updates_decay` updates.
+    """
+    lr_scheduler_warmup = torch.optim.lr_scheduler.LinearLR(
+        optimizer=optimizer,
+        start_factor=warmup_start_factor,
+        end_factor=1.,
+        total_iters=n_updates_warmup,
+        last_epoch=-1
+    )
+    
+    lr_scheduler_decay = torch.optim.lr_scheduler.LinearLR(
+        optimizer=optimizer,
+        start_factor=1.,
+        end_factor=decay_end_factor,
+        total_iters=n_updates_decay,
+        last_epoch=-1
+    )
+
+    return lr_scheduler_warmup, lr_scheduler_decay
+
+
+def lr_linear_update(
+        update_counter,
+        lr_scheduler_warmup,
+        lr_scheduler_decay,
+        n_updates_warmup
+    ):
+    """
+    Performs an update of the optimizer's learning rate using
+    `lr_scheduler_warmup` for the first `n_updates_warmup` updates
+    and `lr_scheduler_decay` for all the later ones.
+    """
+    if update_counter < n_updates_warmup:
+        lr_scheduler_warmup.step()
+    else:
+        lr_scheduler_decay.step()

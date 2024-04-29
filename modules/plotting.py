@@ -79,7 +79,6 @@ def plot_training_history(
                         color=sns.color_palette()[i+j+1]
                     )
             elif isinstance(baseline_accuracy, dict):
-                print('f')
                 for j, (label, ba) in enumerate(baseline_accuracy.items()):
                     print(label, ba)
                     sns.lineplot(
@@ -97,6 +96,30 @@ def plot_training_history(
         if (savefig_dir is not None) and (exp_id is not None):
             plt.savefig(
                 os.path.join(savefig_dir, f'{exp_id}_accuracy.png'),
+                dpi=400,
+                bbox_inches='tight'
+            )
+
+    # Plot learning rate.
+    if 'learning_rate' in training_history.keys():
+        fig = plt.figure(figsize=(14, 6))
+
+        sns.lineplot(
+            x=epochs_range,
+            y=training_history['learning_rate']
+        )
+
+        plt.title(
+            'Learning rate'
+            f'\nInitial: {training_history["learning_rate"][0]}'
+            f'\nFinal: {training_history["learning_rate"][-1]}'
+        )
+        plt.xlabel('Epoch')
+        plt.ylabel('Learning rate')
+
+        if (savefig_dir is not None) and (exp_id is not None):
+            plt.savefig(
+                os.path.join(savefig_dir, f'{exp_id}_learning_rate.png'),
                 dpi=400,
                 bbox_inches='tight'
             )

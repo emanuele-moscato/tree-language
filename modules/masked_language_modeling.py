@@ -75,10 +75,11 @@ def train_model_mlm(
         mask_idx,
         device,
         optimizer,
+        lr_schedule_fn=None,
         training_history=None,
         checkpointing_period_epochs=None,
         model_dir=None,
-        checkpoint_id=None
+        checkpoint_id=None,
     ):
     """
     Trains a model for mask language modeling.
@@ -87,12 +88,16 @@ def train_model_mlm(
 
     logger.info('Training model')
 
+    update_counter = 0
+
     if training_history is None:
         epoch_counter = 0
 
         training_history = {
             'training_loss': [],
             'training_accuracy': [],
+            'learning_rate': [],
+            'learning_rate_updates': []
         }
     else:
         # Resume training from the last epoch, as inferred by the length of
@@ -129,6 +134,8 @@ def train_model_mlm(
             training_accuracy_batches = []
 
             for batch in training_loader:
+                update_counter += 1
+
                 # In this case, batch is a 1-element list (the batch of
                 # sequences).
                 batch = batch[0]
@@ -161,6 +168,14 @@ def train_model_mlm(
                 )
                 training_accuracy_batches.append(training_accuracy_batch)
 
+                # Update the learning rate, if needed.
+                if lr_schedule_fn is not None:
+                    lr_schedule_fn(update_counter)
+
+                    training_history['learning_rate_updates'].append(
+                        optimizer.state_dict()['param_groups'][0]['lr']
+                    )
+
             # Training loss and accuracy for one epoch is computed as the average
             # training loss over the batches.
             training_loss = torch.tensor(training_loss_batches).mean()
@@ -168,10 +183,14 @@ def train_model_mlm(
             
             training_history['training_loss'].append(training_loss)
             training_history['training_accuracy'].append(training_accuracy)
+            training_history['learning_rate'].append(
+                optimizer.state_dict()['param_groups'][0]['lr']
+            )
 
             pbar.set_postfix(
                 training_loss=training_history['training_loss'][-1],
                 training_accuracy=training_history['training_accuracy'][-1],
+                learning_rate=training_history['learning_rate'][-1]
             )
 
             if (
