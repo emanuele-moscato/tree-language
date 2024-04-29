@@ -19,8 +19,10 @@ def plot_training_history(
     # Plot loss.
     fig = plt.figure(figsize=(14, 6))
 
+    epochs_range = range(1, len(training_history['training_loss']) + 1)
+
     sns.lineplot(
-        x=range(len(training_history['training_loss'])),
+        x=epochs_range,
         y=training_history['training_loss'],
         label='Training loss'
     )
@@ -29,7 +31,7 @@ def plot_training_history(
 
     if 'val_loss' in training_history.keys():
         sns.lineplot(
-            x=range(len(training_history['val_loss'])),
+            x=epochs_range,
             y=training_history['val_loss'],
             label='Validation loss'
         )
@@ -58,7 +60,7 @@ def plot_training_history(
 
         for i, accuracy_metric in enumerate(accuracy_metrics):
             sns.lineplot(
-                x=range(len(training_history[accuracy_metric])),
+                x=epochs_range,
                 y=training_history[accuracy_metric],
                 label=accuracy_metric,
                 color=sns.color_palette()[i]
@@ -71,7 +73,7 @@ def plot_training_history(
             if isinstance(baseline_accuracy, list):
                 for j, ba in enumerate(baseline_accuracy):
                     sns.lineplot(
-                        x=range(len(training_history[accuracy_metric])),
+                        x=epochs_range,
                         y=ba,
                         label='Baseline accuracy',
                         color=sns.color_palette()[i+j+1]
@@ -81,7 +83,7 @@ def plot_training_history(
                 for j, (label, ba) in enumerate(baseline_accuracy.items()):
                     print(label, ba)
                     sns.lineplot(
-                        x=range(len(training_history[accuracy_metric])),
+                        x=epochs_range,
                         y=ba,
                         label=label,
                         color=sns.color_palette()[i+j+1],

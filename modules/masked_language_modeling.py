@@ -1,3 +1,4 @@
+import os
 import logging
 from tqdm import trange
 import torch
@@ -69,17 +70,18 @@ def train_model_mlm(
         sequences,
         model,
         n_epochs,
-        learning_rate,
         batch_size,
         mask_rate,
         mask_idx,
         device,
-        optimizer=None,
-        training_history=None
+        optimizer,
+        training_history=None,
+        checkpointing_period_epochs=None,
+        model_dir=None,
+        checkpoint_id=None
     ):
     """
-    Trains a model for mask language modeling. Pass an optimizer to resume
-    training with that optimizer, otherwise a new one is initialized.
+    Trains a model for mask language modeling.
     """
     logger = get_logger('train_model_mlm', level=logging.INFO)
 
@@ -100,14 +102,6 @@ def train_model_mlm(
         )
 
         logger.info(f'Resuming training from epoch {epoch_counter}')
-
-    if optimizer is None:
-        logger.info('Instantiating a new optimizer')
-
-        optimizer = torch.optim.Adam(
-            params=model.parameters(),
-            lr=learning_rate
-        )
 
     loss_fn = loss_fn = torch.nn.CrossEntropyLoss(
         reduction='none'
@@ -180,9 +174,46 @@ def train_model_mlm(
                 training_accuracy=training_history['training_accuracy'][-1],
             )
 
+            if (
+                (checkpointing_period_epochs is not None)
+                and (epoch_counter % checkpointing_period_epochs == 0)
+            ):
+                # Save model/optimizer checkpoint.
+                checkpoint_path = os.path.join(
+                    model_dir, 
+                    checkpoint_id + f'_epoch_{epoch_counter}.pt'
+                )
+
+                torch.save(
+                    {
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'training_history': training_history
+                    },
+                    checkpoint_path
+                )
+
     training_history['training_loss'] = torch.tensor(training_history['training_loss']).tolist()
     training_history['training_accuracy'] = torch.tensor(training_history['training_accuracy']).tolist()
 
     logger.info(f'Last epoch: {epoch_counter}')
+
+    if checkpointing_period_epochs is not None:
+        logger.info('Saving final model checkpoint')
+
+        # Save model/optimizer checkpoint.
+        checkpoint_path = os.path.join(
+            model_dir, 
+            checkpoint_id + f'_epoch_{epoch_counter}.pt'
+        )
+
+        torch.save(
+            {
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'training_history': training_history
+            },
+            checkpoint_path
+        )
 
     return model, optimizer, training_history
