@@ -2,6 +2,7 @@ import os
 import logging
 from tqdm import trange
 import torch
+from torch.utils.tensorboard import SummaryWriter
 from logger_tree_language import get_logger
 
 
@@ -110,7 +111,7 @@ def train_model_mlm(
         logger.info(f'Resuming training from epoch {epoch_counter}')
 
     if tensorboard_log_dir is not None:
-        writer = torch.utils.tensorboard.SummaryWriter(
+        writer = SummaryWriter(
             log_dir=tensorboard_log_dir
         )
     else:
