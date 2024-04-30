@@ -80,6 +80,7 @@ def train_model_mlm(
         checkpointing_period_epochs=None,
         model_dir=None,
         checkpoint_id=None,
+        tensorboard_log_dir=None
     ):
     """
     Trains a model for mask language modeling.
@@ -107,6 +108,13 @@ def train_model_mlm(
         )
 
         logger.info(f'Resuming training from epoch {epoch_counter}')
+
+    if tensorboard_log_dir is not None:
+        writer = torch.utils.tensorboard.SummaryWriter(
+            log_dir=tensorboard_log_dir
+        )
+    else:
+        writer = None
 
     loss_fn = loss_fn = torch.nn.CrossEntropyLoss(
         reduction='none'
@@ -193,6 +201,24 @@ def train_model_mlm(
                 learning_rate=training_history['learning_rate'][-1]
             )
 
+            # Write scalars to Tensorboard logs.
+            if writer is not None:
+                writer.add_scalar(
+                    'Loss/train',
+                    training_history['training_loss'][-1],
+                    epoch_counter
+                )
+                writer.add_scalar(
+                    'Accuracy/train',
+                    training_history['training_accuracy'][-1],
+                    epoch_counter
+                )
+                writer.add_scalar(
+                    'LR/train',
+                    training_history['learning_rate'][-1],
+                    epoch_counter
+                )
+
             if (
                 (checkpointing_period_epochs is not None)
                 and (epoch_counter % checkpointing_period_epochs == 0)
@@ -234,5 +260,9 @@ def train_model_mlm(
             },
             checkpoint_path
         )
+
+    if writer is not None:
+        writer.flush()
+        writer.close()
 
     return model, optimizer, training_history
