@@ -1,3 +1,4 @@
+from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn as nn
@@ -281,3 +282,59 @@ class TransformerClassifier(nn.Module):
         x = self.decoder(x)
 
         return x
+    
+
+def replace_decoder_with_classification_head(
+        original_model,
+        n_classes,
+        device,
+        head_hidden_dim=[64],
+        head_activation='relu'
+    ):
+    """
+    Replaces the decoder of a `TransformerClassifier` model pretrained
+    with masked language modeling with a new classification head. The
+    aggregation operation of the tokens' latent representation is modified
+    accordingly (by flattening).
+    """
+    model = deepcopy(original_model)
+    
+    # Replace the aggregation operation from `None` (no aggregation, as
+    # needed for MLM) to `flatten`.
+    model.embedding_agg = 'flatten'
+    model.embedding_agg_layer = torch.nn.Flatten(start_dim=-2, end_dim=-1)
+    
+    decoder_input_dim = model.seq_len * model.embedding_size
+    
+    # Replace the decoder with a FFNN of appropriate size.
+    model.decoder = FFNN(
+        dims=(
+            [decoder_input_dim]
+            + head_hidden_dim
+            + [n_classes]
+        ),
+        activation=head_activation,
+        output_activation='softmax',
+        batch_normalization=False,
+        concatenate_last_dim=False
+    ).to(device=device)
+
+    return model
+
+
+def freeze_encoder_weights(model, trainable_modules=['decoder']):
+    """
+    Freezes the weights in all the submodules of `models` whose name
+    doesn't appear in the `trainable_modules` list.
+    """
+    for submodule in model.named_children():
+        if submodule[0] not in trainable_modules:
+            for p in submodule[1].parameters():
+                p.requires_grad = False
+        
+        print(
+            submodule[0],
+            f'| N parameters: {sum([p.numel() for p in submodule[1].parameters()])}'
+            ' | Parameters trainable:',
+            all([p.requires_grad for p in submodule[1].parameters()])
+        )
