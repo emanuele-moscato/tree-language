@@ -7,24 +7,25 @@ import torch
 sys.path.append('../modules/')
 
 from logger_tree_language import get_logger
+from utilities import read_data
 from models import TransformerClassifier
 from pytorch_utilities import create_linear_lr_schedulers, lr_linear_update
 from masked_language_modeling import train_model_mlm
 from plotting import plot_training_history
 
 
-DATA_PATH = (
-    '../data/mlm_data/slrm_data/labeled_data_fixed_4_8_1.0_0.00000.npy'
-)
+DATA_PATH = '../data/mlm_data/slrm_data/labeled_data_fixed_4_8_1.0_0.00000.npy'
+VALIDATION_DATA_PATH = '../data/mlm_data/slrm_data/labeled_data_fixed_validation_4_8_1.0_0.00000.npy'
+N_VAL_SAMPLES = 5000
 SEED = 0
-EXP_ID = 'mlm_pretraining_1'
+EXP_ID = 'mlm_pretraining_validation_test'
 LOG_FILE_PATH = f'../logs/{EXP_ID}.txt'
 MODEL_DIR = f'../models/{EXP_ID}/'
 BATCH_SIZE = 32  # 32 is the standard (e.g. in Keras)
-N_EPOCHS = 6000
+N_EPOCHS = 10
 WARMUP_UPDATES_FRAC = 0.15
 MASK_RATE = 0.1
-CHECKPOINTING_PERIOD_EPOCHS = int(N_EPOCHS) / 20
+CHECKPOINTING_PERIOD_EPOCHS = int(N_EPOCHS) / 5
 
 
 def main():
@@ -42,23 +43,28 @@ def main():
         f' | N epochs: {N_EPOCHS}'
         f' | Fraction of warmup updates: {WARMUP_UPDATES_FRAC}'
         f' | Token masking rate: {MASK_RATE}'
+        f' | N validation samples: {N_VAL_SAMPLES}'
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Read data.
-    logger.info(f'Reading data from: {DATA_PATH}')
+    logger.info(f'Reading training data from: {DATA_PATH}')
 
-    q, k, sigma, epsilon, _, leaves_seeds, _ = np.load(
-        DATA_PATH, allow_pickle=True
+    q, k, sigma, epsilon, _, leaves, _ = read_data(
+        DATA_PATH, seed=SEED
     )
 
-    shuffled_indices = np.random.choice(
-        range(leaves_seeds.shape[1]), leaves_seeds.shape[1], replace=False
-    )
+    if VALIDATION_DATA_PATH is not None:
+        logger.info(f'Reading validation data from: {VALIDATION_DATA_PATH}')
 
-    leaves = leaves_seeds[..., SEED].T
-    leaves = leaves[shuffled_indices, :]
+        _, _, _, _, _, leaves_validation, _ = read_data(
+            VALIDATION_DATA_PATH, seed=SEED
+        )
+
+        leaves_validation = leaves_validation[:N_VAL_SAMPLES, :]
+    else:
+        leaves_validation = None
 
     # Generate a vocabulary (in this case, "text" is already tokenized).
     vocab = torch.arange(q).to(dtype=torch.int64)
@@ -71,6 +77,13 @@ def main():
 
     # Data preprocessing.
     leaves = torch.from_numpy(leaves).to(device=device).to(dtype=torch.int64)
+
+    if leaves_validation is not None:
+        leaves_validation = (
+            torch.from_numpy(leaves_validation)
+            .to(device=device)
+            .to(dtype=torch.int64)
+        )
 
     # Define model.
     logger.info('Instantiating model')
@@ -168,7 +181,8 @@ def main():
         checkpointing_period_epochs=CHECKPOINTING_PERIOD_EPOCHS,
         model_dir=MODEL_DIR,
         checkpoint_id=EXP_ID,
-        tensorboard_log_dir=f'../tensorboard_logs/{EXP_ID}/'
+        tensorboard_log_dir=f'../tensorboard_logs/{EXP_ID}/',
+        val_sequences=leaves_validation
     )
 
     plot_training_history(
