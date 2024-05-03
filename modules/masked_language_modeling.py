@@ -81,10 +81,11 @@ def train_model_mlm(
         checkpointing_period_epochs=None,
         model_dir=None,
         checkpoint_id=None,
-        tensorboard_log_dir=None
+        tensorboard_log_dir=None,
+        val_sequences=None
     ):
     """
-    Trains a model for mask language modeling.
+    Trains a model for masked language modeling.
     """
     logger = get_logger('train_model_mlm', level=logging.INFO)
 
@@ -101,6 +102,10 @@ def train_model_mlm(
             'learning_rate': [],
             'learning_rate_updates': []
         }
+
+        if val_sequences is not None:
+            training_history['val_loss'] = []
+            training_history['val_accuracy'] = []
     else:
         # Resume training from the last epoch, as inferred by the length of
         # the provided training history.
@@ -109,6 +114,19 @@ def train_model_mlm(
         )
 
         logger.info(f'Resuming training from epoch {epoch_counter}')
+
+        if 'val_loss' in training_history.keys():
+            if val_sequences is None:
+                raise Exception(
+                    'Validation data was used in previous training, please '
+                    'keep using it'
+                )
+        else:
+            if val_sequences is not None:
+                raise Exception(
+                    'No validation data was used in previous training, please'
+                    'keep not using it'
+                )
 
     if tensorboard_log_dir is not None:
         writer = SummaryWriter(
@@ -133,6 +151,11 @@ def train_model_mlm(
     reshaped_mask_idx = (
         mask_idx.repeat(sequences[:batch_size, ...].shape).to(device=device)
     )
+
+    if val_sequences is not None:
+        reshaped_mask_idx_val = (
+            mask_idx.repeat(val_sequences.shape).to(device=device)
+        )
 
     # Training loop.
     with trange(n_epochs) as pbar:
@@ -196,11 +219,51 @@ def train_model_mlm(
                 optimizer.state_dict()['param_groups'][0]['lr']
             )
 
-            pbar.set_postfix(
-                training_loss=training_history['training_loss'][-1],
-                training_accuracy=training_history['training_accuracy'][-1],
-                learning_rate=training_history['learning_rate'][-1]
-            )
+            # If valdiation data is passed as input, compute the (masked) loss
+            # and accuracy.
+            if val_sequences is not None:
+                with torch.no_grad():
+                    # Randomly mask the validation data.
+                    masked_validation_sequences, mask_val = mask_sequences(
+                        val_sequences,
+                        mask_rate=mask_rate,
+                        reshaped_mask_idx=reshaped_mask_idx_val,
+                        device=device
+                    )
+
+                    # Generate predictions for the validation data.
+                    val_pred = model(masked_validation_sequences)
+
+                    # Compute validation (masked) loss and accuracy.
+                    val_loss = val_loss = loss_fn(
+                        torch.permute(
+                            val_pred,
+                            (0, 2, 1)),
+                        val_sequences
+                    )[mask_val].mean()
+
+                    val_accuracy = val_masked_accuracy = compute_masked_accuracy(
+                        val_pred,
+                        val_sequences,
+                        mask_val
+                    )
+
+                training_history['val_loss'].append(val_loss)
+                training_history['val_accuracy'].append(val_accuracy)
+
+                pbar.set_postfix(
+                    training_loss=training_history['training_loss'][-1],
+                    training_accuracy=training_history['training_accuracy'][-1],
+                    val_loss=training_history['val_loss'][-1],
+                    val_accuracy=training_history['val_accuracy'][-1],
+                    learning_rate=training_history['learning_rate'][-1]
+                )
+            else:
+                pbar.set_postfix(
+                    training_loss=training_history['training_loss'][-1],
+                    training_accuracy=training_history['training_accuracy'][-1],
+                    learning_rate=training_history['learning_rate'][-1]
+                )
 
             # Write scalars to Tensorboard logs.
             if writer is not None:
@@ -219,6 +282,18 @@ def train_model_mlm(
                     training_history['learning_rate'][-1],
                     epoch_counter
                 )
+
+                if val_sequences is not None:
+                    writer.add_scalar(
+                        'Loss/val',
+                        training_history['val_loss'][-1],
+                        epoch_counter
+                    )
+                    writer.add_scalar(
+                        'Accuracy/val',
+                        training_history['val_accuracy'][-1],
+                        epoch_counter
+                    )
 
             if (
                 (checkpointing_period_epochs is not None)
@@ -241,6 +316,10 @@ def train_model_mlm(
 
     training_history['training_loss'] = torch.tensor(training_history['training_loss']).tolist()
     training_history['training_accuracy'] = torch.tensor(training_history['training_accuracy']).tolist()
+
+    if val_sequences is not None:
+        training_history['val_loss'] = torch.tensor(training_history['val_loss']).tolist()
+        training_history['val_accuracy'] = torch.tensor(training_history['val_accuracy']).tolist()
 
     logger.info(f'Last epoch: {epoch_counter}')
 
