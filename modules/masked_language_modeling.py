@@ -18,7 +18,7 @@ def mask_sequences(sequences, mask_rate, reshaped_mask_idx, device, single_mask=
 
     if single_mask: # Only one mask per sequence
         mask = torch.zeros(sequences.shape, dtype=torch.bool, device=device)
-        mask[torch.rand.randint(0, sequences.shape[0])] = True
+        mask[torch.randint(0, sequences.shape[0],(1,))] = True
 
     # Mask the sequences: replace the elements corresponding to the True
     # entries of the mask with the `mask_idx` index.
