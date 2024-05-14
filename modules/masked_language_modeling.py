@@ -5,7 +5,7 @@ import torch
 from logger_tree_language import get_logger
 
 
-def mask_sequences(sequences, mask_rate, reshaped_mask_idx, device):
+def mask_sequences(sequences, mask_rate, reshaped_mask_idx, device, single_mask=False):
     """
     Performs random masking of the elements of the input sequence,
     substituting them with the token `mask_idx` with probability `mask_rate`.
@@ -14,6 +14,10 @@ def mask_sequences(sequences, mask_rate, reshaped_mask_idx, device):
     # having a `mask_rate` probability of being True (corresponding to
     # the elements to mask).
     mask = (torch.rand(size=sequences.shape) < mask_rate).to(device=device)
+
+    if single_mask: # Only one mask per sequence
+        mask = torch.zeros(sequences.shape, dtype=torch.bool, device=device)
+        mask[torch.rand.randint(0, sequences.shape[0])] = True
 
     # Mask the sequences: replace the elements corresponding to the True
     # entries of the mask with the `mask_idx` index.
@@ -80,7 +84,8 @@ def train_model_mlm(
         checkpointing_period_epochs=None,
         model_dir=None,
         checkpoint_id=None,
-        tensorboard_log_dir=None
+        tensorboard_log_dir=None,
+        single_mask=False
     ):
     """
     Trains a model for mask language modeling.
@@ -153,7 +158,8 @@ def train_model_mlm(
                     batch,
                     mask_rate,
                     reshaped_mask_idx,
-                    device
+                    device,
+                    single_mask
                 )
 
                 training_loss_batch = training_step_mlm(
