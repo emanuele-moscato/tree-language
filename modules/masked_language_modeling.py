@@ -23,8 +23,6 @@ def mask_sequences(sequences, mask_rate, reshaped_mask_idx, device, single_mask=
         random_indices = torch.randint(0, sequences.shape[-1], (sequences.shape[0],), device=device)
         mask[torch.arange(sequences.shape[0]), random_indices] = True
 
-    print(mask)
-
     # Mask the sequences: replace the elements corresponding to the True
     # entries of the mask with the `mask_idx` index.
     masked_sequences = torch.where(
