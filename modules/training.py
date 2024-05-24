@@ -311,10 +311,15 @@ def train_model(
 
                 training_batch, training_targets = batch
 
-                training_loss_batch = loss_fn(model(training_batch), training_targets)
-                training_loss_batches.append(training_loss_batch)
+                with torch.no_grad():
+                    training_loss_batch = loss_fn(
+                        model(training_batch), training_targets
+                    )
+                    training_accuracy_batch = compute_accuracy(
+                        model(training_batch), training_targets
+                    )
 
-                training_accuracy_batch = compute_accuracy(model(training_batch), training_targets)
+                training_loss_batches.append(training_loss_batch)
                 training_accuracy_batches.append(training_accuracy_batch)
 
         training_loss = torch.tensor(training_loss_batches).mean()

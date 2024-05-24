@@ -4,6 +4,14 @@ import torch
 from models import TransformerClassifier
 
 
+def count_model_params(model):
+    """
+    Counts the total number of parameters of a model, irrespective whether
+    they are trainable or not.
+    """
+    return sum([p.numel() for p in model.parameters()])
+
+
 def optimizer_to(optim, device):
     """
     Sends a PyTorch optimizer's parameters to the selected device,
