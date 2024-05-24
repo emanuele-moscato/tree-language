@@ -226,6 +226,10 @@ def train_model(
 
     logger.info('Training model')
 
+    # Counter for the number of GRADIENT DESCENT STEPS performed in the
+    # current training run (correspnding to the total number of batches the
+    # model is trained upon across all epochs) - useful if learning rate
+    # scheduling is used.
     update_counter = 0
 
     if training_history is None:
@@ -303,6 +307,8 @@ def train_model(
         training_accuracy_batches = []
 
         for batch in training_loader:
+                update_counter += 1
+
                 training_batch, training_targets = batch
 
                 training_loss_batch = loss_fn(model(training_batch), training_targets)
