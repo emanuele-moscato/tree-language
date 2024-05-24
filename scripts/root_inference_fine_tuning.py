@@ -1,5 +1,6 @@
 # WARNING
-# This script is still incomplete, plese DON'T USE IT  as it is!
+# This script is still under testing (results may not agree with those
+# obtained in the fine-tuning notebook), plese DON'T USE IT as it is!
 
 import os
 import sys
@@ -9,25 +10,24 @@ sys.path.append('../modules/')
 
 from logger_tree_language import get_logger
 from utilities import read_data
-from pytorch_utilities import (load_checkpoint,
-    replace_decoder_with_classification_head, freeze_encoder_weights)
-from model_evaluation import compute_accuracy
+from models import (replace_decoder_with_classification_head,
+    freeze_encoder_weights)
+from pytorch_utilities import load_checkpoint, count_model_params
 from training import train_model
 
 
-PRETRAINING_DATA_PATH = '../../data/mlm_data/slrm_data/labeled_data_fixed_4_8_1.0_0.00000.npy'
-DATA_PATH = '../../data/mlm_data/slrm_data/labeled_data_fixed_validation_4_8_1.0_0.00000.npy'
-MODEL_DIR = '../../models/mlm_pretraining_2/'
-EXP_ID = 'root_inference_fine_tuning_1'
+DATA_PATH = '../data/mlm_data/slrm_data/labeled_data_fixed_validation_4_8_1.0_0.00000.npy'
+PRETRAINED_MODEL_DIR = '../models/mlm_pretraining_2/'
+EXP_ID = 'root_inference_fine_tuning_test_1'
 LOG_FILE_PATH = f'../logs/{EXP_ID}.txt'
 SEED = 0
-DEVICE_INDEX = 1
+DEVICE_INDEX = 0
 N_VAL_SAMPLES = 2000
-DECODER_HIDDEN_DIM = [64]
+DECODER_HIDDEN_DIM = [128, 64, 32]
+FREEZE_ENCONDER_WEIGHTS = True
 BATCH_SIZE = 32
-N_EPOCHS = 200
+N_EPOCHS = 25
 LEARNING_RATE = 1e-4
-BATCH_SIZE = 32
 
 
 def main():
@@ -45,11 +45,10 @@ def main():
         f' | Experiment ID: {EXP_ID}'
         f' | Log file: {LOG_FILE_PATH}'
         f' | Device index: {DEVICE_INDEX}'
-        f' | Model dir: {MODEL_DIR}'
+        f' | Pretrained model dir: {PRETRAINED_MODEL_DIR}'
         f' | N epochs: {N_EPOCHS}'
         f' | Batch size: {BATCH_SIZE}'
         f' | Learning rate: {LEARNING_RATE}'
-        # f' | Fraction of warmup updates: {WARMUP_UPDATES_FRAC}'
         f' | N validation samples: {N_VAL_SAMPLES}'
     )
 
@@ -86,23 +85,23 @@ def main():
         f' | N test samples: {leaves_test.shape[0]}'
     )
 
-    # Load model.
-    logger.info(f'Loading model from: {MODEL_DIR}')
+    # Load pre-trained model.
+    logger.info(f'Loading model from: {PRETRAINED_MODEL_DIR}')
 
     checkpoint_epochs = sorted([
         int(f.split('_')[-1].split('.')[0])
-        for f in os.listdir(MODEL_DIR)
+        for f in os.listdir(PRETRAINED_MODEL_DIR)
         if '.pt' in f
     ])
 
     selected_checkpoint_epoch = checkpoint_epochs[-1]
 
-    checkpoint_id = [f for f in os.listdir(MODEL_DIR) if f'{selected_checkpoint_epoch}.pt' in f][0]
+    checkpoint_id = [f for f in os.listdir(PRETRAINED_MODEL_DIR) if f'{selected_checkpoint_epoch}.pt' in f][0]
 
     logger.info(f'Selected checkpoint: {checkpoint_id}')
 
     pretrained_model, _, _ = load_checkpoint(
-        MODEL_DIR,
+        PRETRAINED_MODEL_DIR,
         checkpoint_id,
         device=device
     )
@@ -119,20 +118,25 @@ def main():
         n_classes=q,
         device=device,
         embedding_agg='flatten',
-        head_hidden_dim=[64],
+        head_hidden_dim=DECODER_HIDDEN_DIM,
         head_activation='relu',
-        head_output_activation='identity'
+        head_output_activation='identity',
+        head_batch_normalization=False,
+        head_dropout_p=None
     )
 
-    freeze_encoder_weights(classification_model, trainable_modules=['decoder'])
+    del pretrained_model
 
-    # Compute initial accuracy (before training).
-    initial_accuracy = compute_accuracy(
-        classification_model(leaves_test).detach(),
-        roots_test
-    ).cpu()
+    if FREEZE_ENCONDER_WEIGHTS:
+        logger.info("Freezing the encoder's weights")
 
-    logger.info(f'Initial validation accuracy: {initial_accuracy}')
+        freeze_encoder_weights(classification_model, trainable_modules=['decoder'])
+    else:
+        logger.info("Allowing for tuning of the encoder's weights")
+
+    logger.info(
+        f'Total number of parameters: {count_model_params(classification_model)}'
+    )
 
     loss_fn = torch.nn.CrossEntropyLoss()
 
@@ -144,8 +148,10 @@ def main():
         loss_fn=loss_fn,
         learning_rate=LEARNING_RATE,
         batch_size=BATCH_SIZE,
-        early_stopper=None
+        early_stopper=None,
+        tensorboard_log_dir=f'../tensorboard_logs/{EXP_ID}/',
     )
+
 
 if __name__ == '__main__':
     main()

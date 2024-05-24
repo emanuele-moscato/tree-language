@@ -1,8 +1,9 @@
 import numpy as np
 import torch
 import logging
-from logger_tree_language import get_logger
 from tqdm import trange
+from torch.utils.tensorboard import SummaryWriter
+from logger_tree_language import get_logger
 from model_evaluation_tree_language import compute_accuracy
 
 
@@ -213,7 +214,8 @@ def train_model(
         learning_rate=1e-3,
         batch_size=32,
         early_stopper=None,
-        training_history=None
+        training_history=None,
+        tensorboard_log_dir=None
     ):
     """
     Trains a model for `n_epochs` epochs, with the specified loss function,
@@ -282,6 +284,13 @@ def train_model(
                         'No validation data was used in previous training, '
                         'please keep not using it'
                     )
+
+    if tensorboard_log_dir is not None:
+        writer = SummaryWriter(
+            log_dir=tensorboard_log_dir
+        )
+    else:
+        writer = None
 
     optimizer = torch.optim.Adam(
         params=model.parameters(),
@@ -353,6 +362,34 @@ def train_model(
             f' | Initial val accuracy: {training_history["val_accuracy"][-1]}'
         )
 
+        # Write initial metrics to Tensorboard logs.
+        if writer is not None:
+            writer.add_scalar(
+                'Loss/train',
+                training_history['training_loss'][-1],
+                epoch_counter
+            )
+            writer.add_scalar(
+                'Accuracy/train',
+                training_history['training_accuracy'][-1],
+                epoch_counter
+            )
+            writer.add_scalar(
+                'LR/train',
+                training_history['learning_rate'][-1],
+                epoch_counter
+            )
+            writer.add_scalar(
+                'Loss/val',
+                training_history['val_loss'][-1],
+                epoch_counter
+            )
+            writer.add_scalar(
+                'Accuracy/val',
+                training_history['val_accuracy'][-1],
+                epoch_counter
+            )
+
     # Training loop.
     with trange(n_epochs) as pbar:
         for i in pbar:
@@ -412,6 +449,34 @@ def train_model(
                 learning_rate=training_history['learning_rate'][-1]
             )
 
+            # Write initial metrics to Tensorboard logs.
+            if writer is not None:
+                writer.add_scalar(
+                    'Loss/train',
+                    training_history['training_loss'][-1],
+                    epoch_counter
+                )
+                writer.add_scalar(
+                    'Accuracy/train',
+                    training_history['training_accuracy'][-1],
+                    epoch_counter
+                )
+                writer.add_scalar(
+                    'LR/train',
+                    training_history['learning_rate'][-1],
+                    epoch_counter
+                )
+                writer.add_scalar(
+                    'Loss/val',
+                    training_history['val_loss'][-1],
+                    epoch_counter
+                )
+                writer.add_scalar(
+                    'Accuracy/val',
+                    training_history['val_accuracy'][-1],
+                    epoch_counter
+                )
+
             # Early stoppinf logic.
             if (x_test is not None) and (early_stopper is not None):
                 # Early stopping on validation loss.
@@ -440,5 +505,9 @@ def train_model(
     training_history['val_accuracy'] = torch.tensor(training_history['val_accuracy']).tolist()
 
     logger.info(f'Last epoch: {epoch_counter}')
+
+    if writer is not None:
+        writer.flush()
+        writer.close()
 
     return model, training_history
