@@ -19,7 +19,7 @@ def plot_training_history(
     # Plot loss.
     fig = plt.figure(figsize=(14, 6))
 
-    epochs_range = range(1, len(training_history['training_loss']) + 1)
+    epochs_range = range(0, len(training_history['training_loss']))
 
     sns.lineplot(
         x=epochs_range,

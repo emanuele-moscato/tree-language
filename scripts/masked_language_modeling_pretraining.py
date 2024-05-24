@@ -16,16 +16,17 @@ from plotting import plot_training_history
 
 DATA_PATH = '../data/mlm_data/slrm_data/labeled_data_fixed_4_8_1.0_0.00000.npy'
 VALIDATION_DATA_PATH = '../data/mlm_data/slrm_data/labeled_data_fixed_validation_4_8_1.0_0.00000.npy'
+DEVICE_INDEX = 1
 N_VAL_SAMPLES = 5000
 SEED = 0
-EXP_ID = 'mlm_pretraining_validation_test'
+EXP_ID = 'mlm_pretraining_2'
 LOG_FILE_PATH = f'../logs/{EXP_ID}.txt'
 MODEL_DIR = f'../models/{EXP_ID}/'
 BATCH_SIZE = 32  # 32 is the standard (e.g. in Keras)
-N_EPOCHS = 10
+N_EPOCHS = 2000
 WARMUP_UPDATES_FRAC = 0.15
 MASK_RATE = 0.1
-CHECKPOINTING_PERIOD_EPOCHS = int(N_EPOCHS) / 5
+CHECKPOINTING_PERIOD_EPOCHS = int(N_EPOCHS) / 20
 
 
 def main():
@@ -34,10 +35,15 @@ def main():
         log_file_path=LOG_FILE_PATH
     )
 
+    device = torch.device(
+        f"cuda:{DEVICE_INDEX}" if torch.cuda.is_available() else "cpu"
+    )
+
     logger.info(
         'Masked language modeling training'
         f' | Experiment ID: {EXP_ID}'
         f' | Log file: {LOG_FILE_PATH}'
+        f' | Device index: {DEVICE_INDEX}'
         f' | Model dir: {MODEL_DIR}'
         f' | Batch size: {BATCH_SIZE}'
         f' | N epochs: {N_EPOCHS}'
@@ -45,8 +51,6 @@ def main():
         f' | Token masking rate: {MASK_RATE}'
         f' | N validation samples: {N_VAL_SAMPLES}'
     )
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Read data.
     logger.info(f'Reading training data from: {DATA_PATH}')

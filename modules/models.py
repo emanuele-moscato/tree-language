@@ -2,6 +2,7 @@ from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn as nn
+from logger_tree_language import get_logger
 
 
 class FFNN(nn.Module):
@@ -20,6 +21,7 @@ class FFNN(nn.Module):
             activation='relu',
             output_activation='identity',
             batch_normalization=False,
+            dropout_p=None,
             concatenate_last_dim=False
         ):
         """
@@ -30,6 +32,7 @@ class FFNN(nn.Module):
         super().__init__()
 
         self.batch_normalization = batch_normalization
+        self.dropout_p = dropout_p
         self.concatenate_last_dim = concatenate_last_dim
 
         if concatenate_last_dim:
@@ -39,11 +42,23 @@ class FFNN(nn.Module):
         # need to be attributes of the `Module` subclass or they need to be
         # put in ad-hoc containers provided by PyTorch itself such as
         # `ModuleList` objects.
-        # Note: [n layers] = [n dims] - 1 (we include input and output dims).
+        # Notes:
+        #  * [n layers] = [n dims] - 1 (we include input and output dims).
+        #  * [n batch normalization layers] = [n layers] = [n dims] - 1
+        #    (one batch normalization layer before each linear layer).
         if batch_normalization:
             self.batch_norm_layers = nn.ModuleList([
                 nn.BatchNorm1d(num_features=dims[i])
                 for i in range(len(dims) - 1)
+            ])
+
+        # If specified, we place a dropout layer after the activation function
+        # of each HIDDEN linear layer.
+        # Note: [n dropout layers] = [n hidden linear layers] = [n dims] - 2
+        if dropout_p is not None:
+            self.dropout_layers = nn.ModuleList([
+                nn.Dropout(p=dropout_p)
+                for i in range(len(dims) - 2)
             ])
 
         self.linear_layers = nn.ModuleList([
@@ -53,7 +68,7 @@ class FFNN(nn.Module):
 
         # Note: [total n activations] = [n layers] (here we split them into
         #       "intermediate" activations and the output one, after the final
-        #       layer.
+        #       layer).
         n_intermediate_activations = len(dims) - 2
 
         if activation.lower() == 'relu':
@@ -104,6 +119,12 @@ class FFNN(nn.Module):
                 out = self.batch_norm_layers[i](out)
 
             out = activation(layer(out))
+
+            # If using dropout layers, apply dropout after the activation
+            # function of each hidden linear layer (not after the last
+            # - output - one).
+            if (self.dropout_p) and (i != len(self.linear_layers) - 1):
+                out = self.dropout_layers[i](out)
 
         return out
     
@@ -288,23 +309,39 @@ def replace_decoder_with_classification_head(
         original_model,
         n_classes,
         device,
+        embedding_agg='flatten',
         head_hidden_dim=[64],
-        head_activation='relu'
+        head_activation='relu',
+        head_output_activation='identity',
+        head_batch_normalization=False,
+        head_dropout_p=None
     ):
     """
     Replaces the decoder of a `TransformerClassifier` model pretrained
     with masked language modeling with a new classification head. The
     aggregation operation of the tokens' latent representation is modified
-    accordingly (by flattening).
+    accordingly (by flattening or averaging, according to the specified
+    option).
     """
     model = deepcopy(original_model)
     
     # Replace the aggregation operation from `None` (no aggregation, as
     # needed for MLM) to `flatten`.
-    model.embedding_agg = 'flatten'
-    model.embedding_agg_layer = torch.nn.Flatten(start_dim=-2, end_dim=-1)
+    if embedding_agg == 'flatten':
+        model.embedding_agg = 'flatten'
+        model.embedding_agg_layer = torch.nn.Flatten(start_dim=-2, end_dim=-1)
     
-    decoder_input_dim = model.seq_len * model.embedding_size
+        decoder_input_dim = model.seq_len * model.embedding_size
+    elif embedding_agg == 'mean':
+        model.embedding_agg_layer = MeanAggLayer(
+                seq_len=model.seq_len
+            )
+
+        decoder_input_dim = model.embedding_size
+    else:
+        raise NotImplementedError(
+            f'Embeddings aggregation {embedding_agg} not available'
+        )
     
     # Replace the decoder with a FFNN of appropriate size.
     model.decoder = FFNN(
@@ -314,8 +351,9 @@ def replace_decoder_with_classification_head(
             + [n_classes]
         ),
         activation=head_activation,
-        output_activation='softmax',
-        batch_normalization=False,
+        output_activation=head_output_activation,
+        batch_normalization=head_batch_normalization,
+        dropout_p=head_dropout_p,
         concatenate_last_dim=False
     ).to(device=device)
 
@@ -324,17 +362,25 @@ def replace_decoder_with_classification_head(
 
 def freeze_encoder_weights(model, trainable_modules=['decoder']):
     """
-    Freezes the weights in all the submodules of `models` whose name
-    doesn't appear in the `trainable_modules` list.
+    Freezes the weights in all the submodules of `model` whose name
+    don't appear in the `trainable_modules` list. The submodules for which the
+    weigths are frozen are also set to inference mode (dropout layers are
+    deactivated so the submodule's output is deterministic).
     """
+    logger = get_logger('freeze_encoder_weights')
+
     for submodule in model.named_children():
         if submodule[0] not in trainable_modules:
             for p in submodule[1].parameters():
                 p.requires_grad = False
-        
-        print(
-            submodule[0],
+
+            # Set all the PyTorch modules that are not meant to remain
+            # trainable to inference mode.
+            submodule[1].train(mode=False)
+
+        logger.info(
+            f'Module: {submodule[0]}'
             f'| N parameters: {sum([p.numel() for p in submodule[1].parameters()])}'
-            ' | Parameters trainable:',
-            all([p.requires_grad for p in submodule[1].parameters()])
+            f' | Parameters trainable: {all([p.requires_grad for p in submodule[1].parameters()])}'
+            f' | Training mode: {submodule[1].training}'
         )
