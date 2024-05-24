@@ -143,7 +143,7 @@ def train_model_mlm(
     else:
         writer = None
 
-    loss_fn = loss_fn = torch.nn.CrossEntropyLoss(
+    loss_fn = torch.nn.CrossEntropyLoss(
         reduction='none'
     )
 
