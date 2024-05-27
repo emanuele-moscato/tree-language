@@ -412,7 +412,9 @@ def train_model(
 
                 # Compute the training accuracy over the batch and append it to
                 # the corresponding list.
-                training_accuracy_batch = compute_accuracy(model(training_batch), training_targets)
+                training_accuracy_batch = compute_accuracy(
+                    model(training_batch), training_targets
+                ).detach()
                 training_accuracy_batches.append(training_accuracy_batch)
 
             # Training loss and accuracy for one epoch is computed as the average
