@@ -1,4 +1,4 @@
-import numpy as np
+import os
 import torch
 import logging
 from tqdm import trange
@@ -215,6 +215,9 @@ def train_model(
         batch_size=32,
         early_stopper=None,
         training_history=None,
+        checkpointing_period_epochs=None,
+        model_dir=None,
+        checkpoint_id=None,
         tensorboard_log_dir=None
     ):
     """
@@ -412,7 +415,9 @@ def train_model(
 
                 # Compute the training accuracy over the batch and append it to
                 # the corresponding list.
-                training_accuracy_batch = compute_accuracy(model(training_batch), training_targets)
+                training_accuracy_batch = compute_accuracy(
+                    model(training_batch), training_targets
+                ).detach()
                 training_accuracy_batches.append(training_accuracy_batch)
 
             # Training loss and accuracy for one epoch is computed as the average
@@ -449,7 +454,7 @@ def train_model(
                 learning_rate=training_history['learning_rate'][-1]
             )
 
-            # Write initial metrics to Tensorboard logs.
+            # Write metrics to Tensorboard logs.
             if writer is not None:
                 writer.add_scalar(
                     'Loss/train',
@@ -475,6 +480,26 @@ def train_model(
                     'Accuracy/val',
                     training_history['val_accuracy'][-1],
                     epoch_counter
+                )
+
+            # Model checkpointing (if required).
+            if (
+                (checkpointing_period_epochs is not None)
+                and (epoch_counter % checkpointing_period_epochs == 0)
+            ):
+                # Save model/optimizer checkpoint.
+                checkpoint_path = os.path.join(
+                    model_dir,
+                    checkpoint_id + f'_epoch_{epoch_counter}.pt'
+                )
+
+                torch.save(
+                    {
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'training_history': training_history
+                    },
+                    checkpoint_path
                 )
 
             # Early stoppinf logic.
@@ -505,6 +530,25 @@ def train_model(
     training_history['val_accuracy'] = torch.tensor(training_history['val_accuracy']).tolist()
 
     logger.info(f'Last epoch: {epoch_counter}')
+
+    # Write final model checkpoint if needed.
+    if checkpointing_period_epochs is not None:
+        logger.info('Saving final model checkpoint')
+
+        # Save model/optimizer checkpoint.
+        checkpoint_path = os.path.join(
+            model_dir,
+            checkpoint_id + f'_epoch_{epoch_counter}.pt'
+        )
+
+        torch.save(
+            {
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'training_history': training_history
+            },
+            checkpoint_path
+        )
 
     if writer is not None:
         writer.flush()
