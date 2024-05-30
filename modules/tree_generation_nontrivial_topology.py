@@ -87,4 +87,16 @@ def generate_pattern(grammar):
         depth += 1
     
     tree.fill_leaves()
-    return np.array([n.value for n in tree.leaves]), tree.root.value # (x, y) pair 
+    return np.array([n.value for n in tree.leaves]), tree.root.value # (x, y) pair
+
+
+def pad_sequence(sequence, max_seq_len, padding_token):
+    """
+    Pads the given sequence of symbols FROM THE RIGHT up to length
+    `max_seq_len`.
+    """
+    return np.pad(
+        sequence,
+        (0, max_seq_len - len(sequence)),
+        constant_values=padding_token
+    )

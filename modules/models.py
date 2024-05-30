@@ -13,7 +13,6 @@ class FFNN(nn.Module):
 
     TO DO:
       * Restructure how dimensions are passed to the constructor?
-      * Add optional dropout regularization.
     """
     def __init__(
             self,
