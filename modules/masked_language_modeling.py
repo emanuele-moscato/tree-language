@@ -6,30 +6,69 @@ from torch.utils.tensorboard import SummaryWriter
 from logger_tree_language import get_logger
 
 
-def mask_sequences(sequences, mask_rate, reshaped_mask_idx, device, single_mask=False):
+def mask_sequences(
+        sequences,
+        mask_rate,
+        reshaped_mask_idx,
+        device,
+        single_mask=False,
+        src_key_padding_mask=None
+    ):
     """
     Performs random masking of the elements of the input sequence,
-    substituting them with the token `mask_idx` with probability `mask_rate`.
+    substituting them with the token in `reshaped_mask_idx` with probability
+    `mask_rate`. `reshaped_mask_idx` must be a tensor with the same shape as
+    `sequences` containing the mask token only. If `single_mask` is True,
+    only and exactly one symbol per sequence is masked.
+
+    If working with padded sequences, pass the padding mask (same as the one
+    used for the model's forward pass) to `src_key_padding_mask` so the
+    padding tokens are ignored: all the OTHER tokens in the sequences will
+    have probability `mask_rate` of being masked (or only one of the other
+    tokens will be masked, if `single_mask` is True).
     """
     # Generate a boolean mask of shape `sequences.shape` with elements
     # having a `mask_rate` probability of being True (corresponding to
     # the elements to mask).
-
     mask = (torch.rand(size=sequences.shape) < mask_rate).to(device=device)
 
     if single_mask: # Only one mask per sequence
         mask = torch.zeros(sequences.shape, dtype=torch.bool, device=device)
-        # Generate a random index for each sequence in the batch
-        random_indices = torch.randint(0, sequences.shape[-1], (sequences.shape[0],), device=device)
-        mask[torch.arange(sequences.shape[0]), random_indices] = True
+
+        if src_key_padding_mask is not None:
+            # Generate a random index for each sequence in the batch,
+            # excluding the padding tokens (always mask one of the other
+            # tokens).
+            # Note: couldn't find a way to do that without a for loop, do we
+            #       need this?
+            raise NotImplementedError(
+                "Random masking of a single symbol per sequence hasn't been"
+                " implemented yet for padded sequences"
+            )
+        else:
+            # Generate a random index for each sequence in the batch
+            random_indices = torch.randint(0, sequences.shape[-1], (sequences.shape[0],), device=device)
+            mask[torch.arange(sequences.shape[0]), random_indices] = True
 
     # Mask the sequences: replace the elements corresponding to the True
     # entries of the mask with the `mask_idx` index.
+    # Note: if padding tokens are there, this "masks" them as well (they are
+    #       reintroduced below).
     masked_sequences = torch.where(
         mask,
         reshaped_mask_idx,
         sequences
     )
+
+    # If using padded sequences, reintroduce the padding token in all the
+    # padded positions, so at the end none of them is turned into the mask
+    # token.
+    if src_key_padding_mask is not None:
+        masked_sequences = torch.where(
+            src_key_padding_mask,
+            sequences,
+            masked_sequences
+        )
     
     return masked_sequences, mask
 

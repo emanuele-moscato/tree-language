@@ -10,7 +10,7 @@ class TreeLanguageVocab:
             use_pad_token=False
         ):
         self.n_symbols = n_symbols
-        self.special_tokens = []
+        self.special_symbols = []
         self.use_mask_token = use_mask_token,
         self.use_cls_token = use_cls_token
         self.use_pad_token = use_pad_token
@@ -38,25 +38,32 @@ class TreeLanguageVocab:
         # tokens, if required.
         if use_mask_token:
             self.add_symbol('<mask>')
-            self.special_tokens.append('<mask>')
+            self.special_symbols.append('<mask>')
 
         # Add the <cls> symbol to the dictionary and to the list of special
         # tokens, if required.
         if use_cls_token:
             self.add_symbol('<cls>')
-            self.special_tokens.append('<cls>')
+            self.special_symbols.append('<cls>')
 
         # Add the <pad> symbol to the dictionary and to the list of special
         # tokens, if required.
         if use_pad_token:
             self.add_symbol('<pad>')
-            self.special_tokens.append('<pad>')
+            self.special_symbols.append('<pad>')
 
-    def add_symbol(self, new_symbol):
+    def add_symbol(self, new_symbol, special_symbol=False):
         """
         Adds the input symbol to the vocabulary. The corresponding token is
         `[max token] + 1`.
         """
+        # If the new symbol already exists in the vocabulary, raise an
+        # exception.
+        if new_symbol in self.symbols_dict.keys():
+            raise Exception(
+                f'Symbol {new_symbol} already exists in the vocabulary'
+            )
+
         new_token = len(self.symbols_dict.values())
 
         # Add (new_symbol, new_token) pair to the symbols dict, the vocab's
@@ -67,6 +74,11 @@ class TreeLanguageVocab:
             pd.DataFrame([{'symbol': new_symbol,'token': new_token}])
         ])
         self.tokens_dict[new_token] = new_symbol
+
+        # If the new symbol must is considered among the special ones, add it
+        # to the list of special symbols.
+        if special_symbol:
+            self.special_symbols.append(new_symbol)
 
     def __call__(self,  symbol):
         if str(symbol) not in self.symbols_dict.keys():
