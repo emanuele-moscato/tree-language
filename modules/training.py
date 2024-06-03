@@ -7,7 +7,15 @@ from logger_tree_language import get_logger
 from model_evaluation_tree_language import compute_accuracy
 
 
-def training_step(training_data, model, loss_fn, optimizer, val_data=None):
+def training_step(
+        training_data,
+        model,
+        loss_fn,
+        optimizer,
+        val_data=None,
+        train_batch_src_key_padding_mask=None,
+        val_batch_src_key_padding_mask=None
+    ):
     """
     Implements a training step for `model` using the algorithm implemented
     in `optimizer` and minimizing the loss `loss_fn`.
@@ -16,7 +24,10 @@ def training_step(training_data, model, loss_fn, optimizer, val_data=None):
     x_train, y_train = training_data
 
     # Compute the loss function on the training data.
-    y_pred = model(x_train)
+    y_pred = model(
+        x_train,
+        src_key_padding_mask=train_batch_src_key_padding_mask
+    )
     
     training_loss = loss_fn(y_pred, y_train)
 
@@ -36,7 +47,10 @@ def training_step(training_data, model, loss_fn, optimizer, val_data=None):
 
         # Compute validation loss.
         with torch.no_grad():
-            y_pred_val = model(x_val)
+            y_pred_val = model(
+                x_val,
+                src_key_padding_mask=val_batch_src_key_padding_mask
+            )
 
             # val_loss = loss_fn(y_pred_val, y_val).numpy()
             val_loss = loss_fn(y_pred_val, y_val)
@@ -218,7 +232,8 @@ def train_model(
         checkpointing_period_epochs=None,
         model_dir=None,
         checkpoint_id=None,
-        tensorboard_log_dir=None
+        tensorboard_log_dir=None,
+        padding_token=None
     ):
     """
     Trains a model for `n_epochs` epochs, with the specified loss function,
@@ -226,6 +241,10 @@ def train_model(
     object is passed, it is used. If a non-empty training history is passed,
     training resumes (with the options specified as input) from the last epoch
     and the training history is enlarged.
+
+    If `padding_token` is specified, a for each batch of inputs samples the
+    corresponding padding mask is generated and used in the model's forward
+    pass.
     """
     logger = get_logger('train_model', level=logging.INFO)
 
@@ -323,12 +342,25 @@ def train_model(
 
                 training_batch, training_targets = batch
 
+                if padding_token is not None:
+                    # Compute the batch's padding mask.
+                    train_batch_src_key_padding_mask = (
+                        training_batch == padding_token
+                    )
+                else:
+                    train_batch_src_key_padding_mask = None
+
                 with torch.no_grad():
+                    pred = model(
+                        training_batch,
+                        src_key_padding_mask=train_batch_src_key_padding_mask
+                    )
+
                     training_loss_batch = loss_fn(
-                        model(training_batch), training_targets
+                        pred, training_targets
                     )
                     training_accuracy_batch = compute_accuracy(
-                        model(training_batch), training_targets
+                        pred, training_targets
                     )
 
                 training_loss_batches.append(training_loss_batch)
@@ -403,12 +435,21 @@ def train_model(
 
             for batch in training_loader:
                 training_batch, training_targets = batch
-            
+
+                if padding_token is not None:
+                    # Compute the batch's padding mask.
+                    train_batch_src_key_padding_mask = (
+                        training_batch == padding_token
+                    )
+                else:
+                    train_batch_src_key_padding_mask = None
+
                 training_loss_batch, _ = training_step(
                     (training_batch, training_targets),
                     model,
                     loss_fn,
                     optimizer,
+                    train_batch_src_key_padding_mask=train_batch_src_key_padding_mask
                 )
 
                 training_loss_batches.append(training_loss_batch)
@@ -416,7 +457,11 @@ def train_model(
                 # Compute the training accuracy over the batch and append it to
                 # the corresponding list.
                 training_accuracy_batch = compute_accuracy(
-                    model(training_batch), training_targets
+                    model(
+                        training_batch,
+                        src_key_padding_mask=train_batch_src_key_padding_mask
+                    ),
+                    training_targets
                 ).detach()
                 training_accuracy_batches.append(training_accuracy_batch)
 
@@ -432,9 +477,20 @@ def train_model(
             )
 
             if x_test is not None:
+                if padding_token is not None:
+                    # Compute the padding mask for the validation data.
+                    val_src_key_padding_mask = (x_test == padding_token)
+                else:
+                    val_src_key_padding_mask = None
+
                 with torch.no_grad():
-                    val_loss = loss_fn(model(x_test), y_test)
-                    val_accuracy = compute_accuracy(model(x_test), y_test)
+                    val_pred = model(
+                        x_test,
+                        src_key_padding_mask=val_src_key_padding_mask
+                    )
+
+                    val_loss = loss_fn(val_pred, y_test)
+                    val_accuracy = compute_accuracy(val_pred, y_test)
             else:
                 val_loss = None
                 val_accuracy = None
