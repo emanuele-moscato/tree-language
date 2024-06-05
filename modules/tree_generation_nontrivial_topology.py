@@ -1,12 +1,14 @@
 import numpy as np
+from scipy.special import softmax
 
 class Grammar:
     def __init__(self, M, rho):
         self.M = M 
         self.rho = rho
     
-def generate_grammar(Q=4, sigma=1., epsilon=0., rho_intermediate=0., max_depth=5):
-    M = generate_M(Q=Q, sigma=sigma, epsilon=epsilon)
+def generate_grammar(Q=4, sigma=1., epsilon=0., rho_intermediate=0., max_depth=5, seed=None):
+    np.random.seed(seed)
+    M = get_M(Q=Q, sigma=sigma, epsilon=epsilon)
     rho = generate_rho(rho_intermediate=rho_intermediate, max_depth=max_depth) 
     return Grammar(M, rho)
 
@@ -31,8 +33,21 @@ def generate_M(Q=4, sigma=1., epsilon=0.):
                     C[root, pair // Q, pair % Q] += np.log(epsilon)
     M = submat_softmax(C)
     return M
-        
 
+# Modification from Jerome
+def get_M(q,sigma,epsilon): # Refined prescription, no collisions but noise and log-normal distribution
+    # N.B. do not modify for consistency with the other scripts
+    h = sigma*np.random.randn(q,q,q) + np.log(epsilon) # Actually parametrize with logits
+    M = np.empty((q,q,q))
+    tuples = np.array([(i,j) for i in range(q) for j in range(q)])
+    np.random.shuffle(tuples)
+    for i in range(q):
+        for j in range(i*q,(i+1)*q):
+            k,l = tuples[j]
+            h[i,k,l] = sigma*np.random.randn()
+        M[i,:,:] = softmax(h[i,:,:])
+    return M
+        
 def generate_rho(rho_intermediate=0., max_depth=5): 
     rho = rho_intermediate * np.ones(max_depth+1)
     rho[0] = 0.; rho[-1] = 1.
