@@ -8,7 +8,8 @@ class Grammar:
     
 def generate_grammar(Q=4, sigma=1., epsilon=0., rho_intermediate=0., max_depth=5, seed=None):
     np.random.seed(seed)
-    M = get_M(Q=Q, sigma=sigma, epsilon=epsilon)
+    #M = generate_M(Q=Q, sigma=sigma, epsilon=epsilon)
+    M = get_M(Q,sigma,epsilon)
     rho = generate_rho(rho_intermediate=rho_intermediate, max_depth=max_depth) 
     return Grammar(M, rho)
 
