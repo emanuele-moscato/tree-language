@@ -1,14 +1,30 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import torch.nn.functional as F
 
 class PottsModel(nn.Module):
     def __init__(self, seq_len, q):
         super(PottsModel, self).__init__()
         self.J = nn.Parameter(torch.randn(seq_len, seq_len, q, q),requires_grad=True)
         self.h = nn.Parameter(torch.randn(seq_len, q),requires_grad=True)
+        self.q = q
 
     def forward(self, x): # x needs to be 1H encoded i.e. of dim (batch_size,seq_len,q)
+        h_term = self.h[None,...]
+
+        # Compute the contribution from J, removing the self-interactions
+        J_term = torch.einsum('kjb,rjab->kra', x, self.J) - torch.einsum('krb,rrab->kra', x, self.J)
+
+        # Compute the total energy
+        energy = h_term + J_term
+        prob = torch.exp(torch.einsum('kra,kra -> kr',x,energy))/torch.exp(energy).sum(dim=-1)
+        
+        # Compute the pseudo-likelihood
+        npll = -torch.log(prob).sum(dim=-1)
+        return npll
+    
+    def infer_symbols(self, x):
         h_term = self.h[None,...]
 
         # Compute the contribution from J, removing the self-interactions
@@ -17,11 +33,12 @@ class PottsModel(nn.Module):
         energy = h_term + J_term
 
         # Compute the total energy
-        prob = torch.exp(torch.einsum('kra,kra -> kr',x,energy))/torch.exp(energy).sum(dim=-1)
-        
-        # Compute the pseudo-likelihood
-        npll = -torch.log(prob).sum(dim=-1)
-        return npll
+        probs = F.softmax(energy,dim=-1)
+
+        # Infer the symbols
+        x_inferred = torch.argmax(probs,dim=-1)
+
+        return (x_inferred == torch.argmax(x,dim=-1)).to(dtype=torch.float32).mean()
 
 def Potts_training_step(model,data,optimizer):
     loss = model(data).mean()
