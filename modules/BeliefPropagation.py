@@ -6,6 +6,7 @@ The user should use the function run_BP to perform the inference (either of the 
 import numpy as np
 from numba import njit
 from multiprocessing import Pool,cpu_count
+from time import time
 
 @njit
 def generate_tree(l,q,leaves):
@@ -20,7 +21,7 @@ def generate_tree(l,q,leaves):
         down_messages[l,j,:] += leaves[j,:] # Add the prescribed leaves
     return up_messages, down_messages
 
-@njit
+""" @njit
 def update_messages(l,q,up_messages,down_messages,M):
     # Pre allocate stuff
     r_up = np.zeros(q)
@@ -54,6 +55,58 @@ def update_messages(l,q,up_messages,down_messages,M):
                         l_up[p1] += v_up[p2]*M[p2,p1,p3]*r_down[p3]
             up_messages[i+1,2*j,:] = l_up/np.sum(l_up)
             up_messages[i+1,2*j+1,:] = r_up/np.sum(r_up)
+    return up_messages,down_messages """
+
+@njit
+def update_messages(l,q,up_messages,down_messages,M,factorized_layers=0):
+    # Pre allocate stuff
+    r_up = np.zeros(q)
+    l_up = np.zeros(q)
+    v_down = np.zeros(q)
+    if factorized_layers > 0:
+        M_L = np.sum(M,axis=2)
+        M_R = np.sum(M,axis=1)
+    # Start from the leaves and go up to update downgoing (root to leaves) messages
+    for i in range(l-1,-1,-1):
+        if i < factorized_layers:
+            M_eff = np.empty((q,q,q))
+            for j in range(q):
+                M_eff[j,:,:] = np.outer(M_L[j,:],M_R[j,:])
+        else:
+            M_eff = M
+        for j in range(2**i):
+            l_down = down_messages[i+1,2*j,:]
+            r_down = down_messages[i+1,2*j+1,:]
+            # Update the outgoing messages
+            v_down[:] = 0
+            for p1 in range(q): # Not using @ because M matrix is not conitguous so better performance this way
+                for p2 in range(q):
+                    for p3 in range(q):
+                        v_down[p1] += l_down[p2]*M_eff[p1,p2,p3]*r_down[p3]
+            down_messages[i,j,:] = v_down/np.sum(v_down)
+    # Now go back down
+    for i in range(l):
+        if i < factorized_layers:
+            M_eff = np.empty((q,q,q))
+            for j in range(q):
+                M_eff[j,:,:] = np.outer(M_L[j,:],M_R[j,:])
+        else:
+            M_eff = M
+        for j in range(2**i):
+            l_down = down_messages[i+1,2*j,:]
+            r_down = down_messages[i+1,2*j+1,:]
+            v_up = up_messages[i,j,:]
+            # Update the outgoing messages
+            r_up[:] = 0
+            l_up[:] = 0
+            v_down[:] = 0
+            for p1 in range(q): # Not using @ because M matrix is not conitguous so better performance this way
+                for p2 in range(q):
+                    for p3 in range(q):
+                        r_up[p1] += v_up[p2]*M_eff[p2,p3,p1]*l_down[p3]
+                        l_up[p1] += v_up[p2]*M_eff[p2,p1,p3]*r_down[p3]
+            up_messages[i+1,2*j,:] = l_up/np.sum(l_up)
+            up_messages[i+1,2*j+1,:] = r_up/np.sum(r_up)
     return up_messages,down_messages
 
 @njit
@@ -66,7 +119,10 @@ def compute_marginals(l,q,up_messages,down_messages):
     return marginals
 
 @njit
-def get_freeEntropy(M,l,q,up_messages,down_messages):
+def get_freeEntropy(M,l,q,up_messages,down_messages,factorized_layers=0):
+    if factorized_layers > 0:
+        M_L = np.sum(M,axis=2)
+        M_R = np.sum(M,axis=1)
     # First compute the free entropy from the variables
     F_variables = 0
     for i in range(1,l): # Exclude both the root and the leaves
@@ -75,6 +131,12 @@ def get_freeEntropy(M,l,q,up_messages,down_messages):
     # Now compute the free entropy from the factors
     F_factors = 0
     for i in range(l):
+        if i < factorized_layers:
+            M_eff = np.empty((q,q,q))
+            for j in range(q):
+                M_eff[j,:,:] = np.outer(M_L[j,:],M_R[j,:])
+        else:
+            M_eff = M
         for j in range(2**i):
             l_down = down_messages[i+1,2*j,:]
             r_down = down_messages[i+1,2*j+1,:]
@@ -83,11 +145,11 @@ def get_freeEntropy(M,l,q,up_messages,down_messages):
             for p1 in range(q): # Not using @ because M matrix is not conitguous so better performance this way
                 for p2 in range(q):
                     for p3 in range(q):
-                        z_factor += v_up[p1]*M[p1,p2,p3]*l_down[p2]*r_down[p3]
+                        z_factor += v_up[p1]*M_eff[p1,p2,p3]*l_down[p2]*r_down[p3]
             F_factors += np.log(z_factor)/np.log(q)
     return -(F_factors - F_variables)/2**l
     
-def run_BP(M,l,q,xis):
+def run_BP(M,l,q,xis,factorized_layers=0):
     # Convert the leaves into messages, not super efficient but sequences are not so long and just need to do it once
     leaves_BP = np.empty((len(xis),q))
     for i in range(len(xis)):
@@ -97,31 +159,41 @@ def run_BP(M,l,q,xis):
             leaves_BP[i,:] = 0
             leaves_BP[i,xis[i]] = 1
     up_messages,down_messages = generate_tree(l,q,leaves_BP)
-    up_messages,down_messages = update_messages(l,q,up_messages,down_messages,M)
-    freeEntropy = get_freeEntropy(M,l,q,up_messages,down_messages)
+    up_messages,down_messages = update_messages(l,q,up_messages,down_messages,M,factorized_layers)
+    freeEntropy = get_freeEntropy(M,l,q,up_messages,down_messages,factorized_layers)
     marginals = compute_marginals(l,q,up_messages,down_messages)
     return marginals,freeEntropy
 
-def masked_inference(M,l,q,xis):
-    marginals,_ = run_BP(M,l,q,xis)
+def masked_inference(M,l,q,xis,factorized_layers=0):
+    marginals,_ = run_BP(M,l,q,xis,factorized_layers)
     return marginals[-1,:,:]
 
-def root_inference(M,l,q,xis):
-    marginals,_ = run_BP(M,l,q,xis)
+def root_inference(M,l,q,xis,factorized_layers=0):
+    marginals,_ = run_BP(M,l,q,xis,factorized_layers)
     return marginals[0,:,:]
 
-def run_inference(M,l,q,xi,mask_rate):
+def run_root_inference(M,l,q,xis,x0s,N_trials,factorized_layers=0):
+    p = Pool(cpu_count())
+    runs = p.starmap(root_inference,[(M,l,q,xis[:,k],factorized_layers) for k in range(int(N_trials))])
+    success = np.empty((N_trials))
+    for i in range(N_trials):
+        success[i] = np.argmax((runs[i])[0,:]) == x0s[i]
+    success_rates = np.mean(success)
+    p.close()
+    return success_rates
+
+def run_MLM_inference(M,l,q,xi,mask_rate,factorized_layers=0):
     np.random.seed()
     xi_masked = np.copy(xi)
     masked_indices = np.random.choice(len(xi),size=int(mask_rate*len(xi)),replace=False)
     xi_masked[masked_indices] = q + 1
-    marginals = masked_inference(M,l,q,xi_masked)
+    marginals = masked_inference(M,l,q,xi_masked,factorized_layers)
     success_rate = np.mean(np.argmax(marginals[masked_indices,:],axis=1) == xi[masked_indices])
     return success_rate
 
-def MLM_BP_accuracy(M,l,q,xi,mask_rate,N_trials):
+def MLM_BP_accuracy(M,l,q,xi,mask_rate,N_trials,factorized_layers=0):
     p = Pool(cpu_count())
-    runs = p.starmap(run_inference,[(M,l,q,xi[:,k],mask_rate) for k in range(int(N_trials))])
+    runs = p.starmap(run_MLM_inference,[(M,l,q,xi[:,k],mask_rate,factorized_layers) for k in range(int(N_trials))])
     success_rates = np.mean(runs)
     p.close()
     return success_rates
