@@ -233,7 +233,8 @@ def train_model(
         model_dir=None,
         checkpoint_id=None,
         tensorboard_log_dir=None,
-        padding_token=None
+        padding_token=None,
+        test_data_factorized=None
     ):
     """
     Trains a model for `n_epochs` epochs, with the specified loss function,
@@ -266,6 +267,11 @@ def train_model(
             'val_accuracy': [],
             'learning_rate': []
         }
+
+        if test_data_factorized is not None:
+            training_history['val_loss_factorized'] = []
+            training_history['val_accuracy_factorized'] = []
+
     else:
         n_history_entries = len(
             training_history[list(training_history.keys())[0]]
@@ -322,6 +328,13 @@ def train_model(
     x_train, y_train = training_data
     x_test, y_test = test_data
 
+    if test_data_factorized is not None:
+        x_test_factorized = []
+        y_test_factorized = []
+        for i in range(len(test_data_factorized)): # should contain l factorized datasets
+            x_test_factorized.append(test_data_factorized[i][0])
+            y_test_factorized.append(test_data_factorized[i][1])
+
     training_loader = torch.utils.data.DataLoader(
         torch.utils.data.TensorDataset(x_train, y_train),
         batch_size=batch_size,
@@ -373,9 +386,22 @@ def train_model(
             with torch.no_grad():
                 val_loss = loss_fn(model(x_test), y_test)
                 val_accuracy = compute_accuracy(model(x_test), y_test)
+
         else:
             val_loss = None
             val_accuracy = None
+
+        if test_data_factorized is not None:
+            with torch.no_grad():
+                val_loss_factorized = []
+                val_accuracy_factorized = []
+                for i in range(len(test_data_factorized)): # should contain l factorized datasets
+                    val_loss_factorized.append(loss_fn(model(x_test_factorized[i]),y_test_factorized[i]))
+                    val_accuracy_factorized.append(compute_accuracy(model(x_test_factorized[i]),y_test_factorized[i]))
+
+        else: 
+            val_loss_factorized = None
+            val_accuracy_factorized = None
 
         training_history['training_loss'].append(training_loss)
         training_history['training_accuracy'].append(training_accuracy)
@@ -388,6 +414,12 @@ def train_model(
             )
         training_history['val_accuracy'].append(
             val_accuracy if val_accuracy is not None else None
+        )
+        training_history['val_loss_factorized'].append(
+                val_loss_factorized if val_loss_factorized is not None else None
+            )
+        training_history['val_accuracy_factorized'].append(
+            val_accuracy_factorized if val_accuracy_factorized is not None else None
         )
 
         logger.info(
@@ -501,6 +533,29 @@ def train_model(
             training_history['val_accuracy'].append(
                 val_accuracy if val_accuracy is not None else None
             )
+
+            if test_data_factorized is not None:
+                val_loss_factorized = []
+                val_accuracy_factorized = []
+                with torch.no_grad():
+                    for i in range(len(test_data_factorized)):
+                        val_pred_factorized = model(
+                            x_test_factorized[i],
+                        )
+                        val_loss_factorized.append(loss_fn(val_pred_factorized, y_test_factorized[i]))
+                        val_accuracy_factorized.append(compute_accuracy(val_pred_factorized, y_test_factorized[i]))
+
+            else:
+                val_loss_factorized = None
+                val_accuracy_factorized = None
+
+            training_history['val_loss_factorized'].append(
+                val_loss_factorized if val_loss_factorized is not None else None
+            )
+            training_history['val_accuracy_factorized'].append(
+                val_accuracy_factorized if val_accuracy_factorized is not None else None
+            )
+                
 
             pbar.set_postfix(
                 training_loss=training_history['training_loss'][-1],
