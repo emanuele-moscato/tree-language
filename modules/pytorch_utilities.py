@@ -1,5 +1,6 @@
 import os
 import json
+from traceback import format_exc
 import torch
 from models import TransformerClassifier
 
@@ -67,12 +68,27 @@ def load_checkpoint(model_dir, checkpoint_id, device):
     
     # Load data from the checkpoint into the model/optimizer/other variables.
     model_loaded.load_state_dict(checkpoint['model_state_dict'])
-    optimizer_loaded.load_state_dict(checkpoint['optimizer_state_dict'])
-    training_history_loaded = checkpoint['training_history']
-    
-    # Send loaded model and optimizer to the chosen device.
+
+    # Send loaded model to the chosen device.
     model_loaded = model_loaded.to(device=device)
-    optimizer_to(optimizer_loaded, device)
+
+    try:
+        optimizer_loaded.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        # Send loaded optimizer to the chosen device.
+        optimizer_to(optimizer_loaded, device)
+    except Exception as e:
+        print("Couldn't load optimizer")
+        print(format_exc())
+
+        optimizer_loaded = None
+    try:
+        training_history_loaded = checkpoint['training_history']
+    except Exception as e:
+        print("Couldn't load the training history")
+        print(format_exc())
+
+        training_history_loaded = None
 
     return model_loaded, optimizer_loaded, training_history_loaded
 

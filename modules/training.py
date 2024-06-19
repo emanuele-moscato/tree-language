@@ -246,6 +246,15 @@ def train_model(
     If `padding_token` is specified, a for each batch of inputs samples the
     corresponding padding mask is generated and used in the model's forward
     pass.
+
+    If `test_data_factorized` is passed, it should be a list of lists with
+    structure:
+      * `test_data_factorized[i][0]`: input data (the "x") for the i-th
+                                      factorized dataset.
+      * `test_data_factorized[i][1]`: target data (the "y") for the i-th
+                                      factorized dataset.
+    Evaluating performance over all the values of `i` allows for testing the
+    model's performance on different factorized datasets.
     """
     logger = get_logger('train_model', level=logging.INFO)
 
@@ -257,6 +266,8 @@ def train_model(
     # scheduling is used.
     update_counter = 0
 
+    # Initialize a new training history if none is passed as input (training
+    # from scratch).
     if training_history is None:
         epoch_counter = 0
 
@@ -289,6 +300,11 @@ def train_model(
                 'val_accuracy': [],
                 'learning_rate': []
             }
+
+            if test_data_factorized is not None:
+                training_history['val_loss_factorized'] = []
+                training_history['val_accuracy_factorized'] = []
+
         # If a non-empty training history is passed as input, resume training
         # from the last epoch.
         else:
@@ -325,12 +341,15 @@ def train_model(
         lr=learning_rate
     )
 
+    # Unpack training and test data into inputs and targets.
     x_train, y_train = training_data
     x_test, y_test = test_data
 
+    # Unpack the training and test data for the factorized dataset, if needed.
     if test_data_factorized is not None:
         x_test_factorized = []
         y_test_factorized = []
+
         for i in range(len(test_data_factorized)): # should contain l factorized datasets
             x_test_factorized.append(test_data_factorized[i][0])
             y_test_factorized.append(test_data_factorized[i][1])
@@ -395,9 +414,13 @@ def train_model(
             with torch.no_grad():
                 val_loss_factorized = []
                 val_accuracy_factorized = []
+
+                # Creating a lists for validation loss and accuracy in which
+                # each entry is the value of the metric considered for each
+                # factorized dataset.
                 for i in range(len(test_data_factorized)): # should contain l factorized datasets
-                    val_loss_factorized.append(loss_fn(model(x_test_factorized[i]),y_test_factorized[i]))
-                    val_accuracy_factorized.append(compute_accuracy(model(x_test_factorized[i]),y_test_factorized[i]))
+                    val_loss_factorized.append(loss_fn(model(x_test_factorized[i]), y_test_factorized[i]))
+                    val_accuracy_factorized.append(compute_accuracy(model(x_test_factorized[i]), y_test_factorized[i]))
 
         else: 
             val_loss_factorized = None
@@ -411,7 +434,7 @@ def train_model(
 
         training_history['val_loss'].append(
                 val_loss if val_loss is not None else None
-            )
+        )
         training_history['val_accuracy'].append(
             val_accuracy if val_accuracy is not None else None
         )
@@ -539,11 +562,11 @@ def train_model(
             if test_data_factorized is not None:
                 val_loss_factorized = []
                 val_accuracy_factorized = []
+
                 with torch.no_grad():
                     for i in range(len(test_data_factorized)):
-                        val_pred_factorized = model(
-                            x_test_factorized[i],
-                        )
+                        val_pred_factorized = model(x_test_factorized[i])
+
                         val_loss_factorized.append(loss_fn(val_pred_factorized, y_test_factorized[i]))
                         val_accuracy_factorized.append(compute_accuracy(val_pred_factorized, y_test_factorized[i]))
 
@@ -551,6 +574,11 @@ def train_model(
                 val_loss_factorized = None
                 val_accuracy_factorized = None
 
+            # Structure of the training histories for the factorized data: at
+            # each epoch, a list of metric values (one for each factorized
+            # dataset) is appended to the history, so that, e.g.
+            # `training_history['val_loss_factorized'][n][i]` is the
+            # validation loss at the `n`-th epoch for the `i`-th dataset.
             if test_data_factorized is not None:
                 training_history['val_loss_factorized'].append(
                     val_loss_factorized if val_loss_factorized is not None else None
