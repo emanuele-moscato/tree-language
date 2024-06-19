@@ -642,6 +642,9 @@ def train_model(
     training_history['training_accuracy'] = torch.tensor(training_history['training_accuracy']).tolist()
     training_history['val_loss'] = torch.tensor(training_history['val_loss']).tolist()
     training_history['val_accuracy'] = torch.tensor(training_history['val_accuracy']).tolist()
+    if test_data_factorized is not None:
+        training_history['val_loss_factorized'] = torch.tensor(training_history['val_loss_factorized']).tolist()
+        training_history['val_accuracy_factorized'] = torch.tensor(training_history['val_accuracy_factorized']).tolist()
 
     logger.info(f'Last epoch: {epoch_counter}')
 
