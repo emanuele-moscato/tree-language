@@ -415,12 +415,14 @@ def train_model(
         training_history['val_accuracy'].append(
             val_accuracy if val_accuracy is not None else None
         )
-        training_history['val_loss_factorized'].append(
-                val_loss_factorized if val_loss_factorized is not None else None
+
+        if test_data_factorized is not None:
+            training_history['val_loss_factorized'].append(
+                    val_loss_factorized if val_loss_factorized is not None else None
+                )
+            training_history['val_accuracy_factorized'].append(
+                val_accuracy_factorized if val_accuracy_factorized is not None else None
             )
-        training_history['val_accuracy_factorized'].append(
-            val_accuracy_factorized if val_accuracy_factorized is not None else None
-        )
 
         logger.info(
             f'Initial training loss: {training_history["training_loss"][-1]}'
@@ -549,12 +551,13 @@ def train_model(
                 val_loss_factorized = None
                 val_accuracy_factorized = None
 
-            training_history['val_loss_factorized'].append(
-                val_loss_factorized if val_loss_factorized is not None else None
-            )
-            training_history['val_accuracy_factorized'].append(
-                val_accuracy_factorized if val_accuracy_factorized is not None else None
-            )
+            if test_data_factorized is not None:
+                training_history['val_loss_factorized'].append(
+                    val_loss_factorized if val_loss_factorized is not None else None
+                )
+                training_history['val_accuracy_factorized'].append(
+                    val_accuracy_factorized if val_accuracy_factorized is not None else None
+                )
                 
 
             pbar.set_postfix(
