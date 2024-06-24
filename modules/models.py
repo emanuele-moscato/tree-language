@@ -359,6 +359,73 @@ def replace_decoder_with_classification_head(
     return model
 
 
+def replace_classification_head_with_decoder(
+        original_model,
+        n_classes,
+        device,
+        decoder_hidden_dim=[64],
+        decoder_activation='relu',
+        decoder_batch_normalization=False,
+        decoder_dropout_p=None
+    ):
+    """
+    Given a model with a classification head (outputting a tensor of logits or
+    probabilities over the vocabulary for each input sequence), returns a new
+    model in which the head is replaced with a decoder that tries to predict
+    each symbol in each position of the input sequences (i.e. a model for
+    masked language modeling).
+
+    WARNING: we assume that the classification model we started from has NOT
+             seen the mask token, therefore we enlarge its input embedding
+             layer (`torch.nn.Embedding` object) to include one more (new)
+             token, the mask one, which is ASSUMED TO TAKE THE VALUE `q` (so
+             that the original `q` tokens are `0, ..., q-1` and the new one is
+             `q`). If a more complex vocabulary is being used, this function
+             needs to be modified.
+
+             The enlarged input embedding layer (matrix) has the same
+             component as the original one in the rows `0, ..., q-1` (original
+             tokens), and newly initialized weights in row `q` (new mask
+             token).
+    """
+    model = deepcopy(original_model)
+
+    # Replace the aggregation operation over the latent representations of the
+    # tokens with no aggregation.
+    model.embedding_agg = None
+    model.embedding_agg_layer = nn.Identity()
+
+    model.decoder_input_dim = model.embedding_size
+
+    # Enlarge the vocabulary to take the `<mask>` token
+    # into account.
+    model.vocab_size += 1
+
+    # Modify the input embedding layer accordingly (add room
+    # for the `<mask>` token in the first dimension of the
+    # weight matrix and set the first q x embedding_size
+    # entries to be the same as the ones in the original model.
+    model.input_embedding = nn.Embedding(model.vocab_size, model.embedding_size)
+    model.input_embedding.weight.data[:original_model.vocab_size, :] = original_model.input_embedding.weight.data
+
+    model.decoder = FFNN(
+        dims=(
+            [model.embedding_size]
+            + decoder_hidden_dim
+            + [n_classes]
+        ),
+        activation=decoder_activation,
+        output_activation='identity',
+        batch_normalization=decoder_batch_normalization,
+        dropout_p=decoder_dropout_p,
+        concatenate_last_dim=False
+    )
+
+    model = model.to(device=device)
+
+    return model
+
+
 def freeze_encoder_weights(model, trainable_modules=['decoder']):
     """
     Freezes the weights in all the submodules of `model` whose name
