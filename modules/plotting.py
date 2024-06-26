@@ -19,10 +19,10 @@ def plot_training_history(
     # Plot loss.
     fig = plt.figure(figsize=(14, 6))
 
-    epochs_range = range(0, len(training_history['training_loss']))
-
     sns.lineplot(
-        x=epochs_range,
+        # Training loss starts from epoch 1 (after the first epoch of
+        # training).
+        x=range(1, len(training_history['training_loss']) + 1),
         y=training_history['training_loss'],
         label='Training loss'
     )
@@ -31,7 +31,10 @@ def plot_training_history(
 
     if 'val_loss' in training_history.keys():
         sns.lineplot(
-            x=epochs_range,
+            # Validation loss starts from epoch zero (first value computed
+            # before training starts) and has one more value w.r.t. the
+            # training loss history.
+            x=range(0, len(training_history['val_loss'])),
             y=training_history['val_loss'],
             label='Validation loss'
         )
@@ -59,6 +62,12 @@ def plot_training_history(
         fig = plt.figure(figsize=(14, 6))
 
         for i, accuracy_metric in enumerate(accuracy_metrics):
+            epochs_range = (
+                range(1, len(training_history[accuracy_metric]) + 1)
+                if 'train' in accuracy_metric
+                else range(0, len(training_history[accuracy_metric]))
+            )
+
             sns.lineplot(
                 x=epochs_range,
                 y=training_history[accuracy_metric],
@@ -105,7 +114,7 @@ def plot_training_history(
         fig = plt.figure(figsize=(14, 6))
 
         sns.lineplot(
-            x=epochs_range,
+            x=range(1, len(training_history['learning_rate']) + 1),
             y=training_history['learning_rate']
         )
 
