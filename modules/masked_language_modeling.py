@@ -4,6 +4,7 @@ from tqdm import trange
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from logger_tree_language import get_logger
+from models import switch_training_mode_submodules
 
 
 def mask_sequences(
@@ -130,7 +131,8 @@ def train_model_mlm(
         tensorboard_log_dir=None,
         val_sequences=None,
         single_mask=False,
-        test_data_factorized=None
+        test_data_factorized=None,
+        frozen_encoder=False
     ):
     """
     Trains a model for masked language modeling.
@@ -139,6 +141,11 @@ def train_model_mlm(
     validation datasets (not necessarily with the same number of sequences),
     with `test_data_factorized[i]` being the tensor of sequences for dataset
     `i`.
+
+    Validation metrics are computed by putting the model in evaluation mode
+    (i.e. with dropout and batch normalization - if any - layers deactivated).
+    If `frozen_encoder` is `True`, only the `decoder` submodule is switched
+    between training and evaluation mode when computing validation metrics.
     """
     logger = get_logger('train_model_mlm', level=logging.INFO)
 
@@ -240,8 +247,21 @@ def train_model_mlm(
                     single_mask=single_mask
                 )
 
-                # Generate predictions for the validation data.
+                # Generate predictions for the validation data, switching to
+                # evaluation mode.
+                model.eval()
+
                 val_pred = model(masked_validation_sequences)
+
+                # If the encoder must be kept frozen (and, by default, in
+                # evaluation mode), put only the decoder back into training
+                # mode, otherwise the whole model.
+                if frozen_encoder:
+                    switch_training_mode_submodules(
+                        'train', model, ['decoder']
+                    )
+                else:
+                    model.train()
 
                 # Compute validation (masked) loss and accuracy.
                 val_loss = loss_fn(
@@ -280,8 +300,21 @@ def train_model_mlm(
                         single_mask=single_mask
                     )
 
-                    # Generate predictions for the factorized data.
+                    # Generate predictions for the validation data, switching to
+                    # evaluation mode.
+                    model.eval()
+
                     factorized_pred = model(masked_factorized_sequences)
+
+                    # If the encoder must be kept frozen (and, by default, in
+                    # evaluation mode), put only the decoder back into training
+                    # mode, otherwise the whole model.
+                    if frozen_encoder:
+                        switch_training_mode_submodules(
+                            'train', model, ['decoder']
+                        )
+                    else:
+                        model.train()
 
                     # Compute (masked) loss and accuracy on the factorized
                     # data.
@@ -380,8 +413,21 @@ def train_model_mlm(
                         single_mask=single_mask
                     )
 
-                    # Generate predictions for the validation data.
+                    # Generate predictions for the validation data, switching
+                    # to evaluation mode.
+                    model.eval()
+
                     val_pred = model(masked_validation_sequences)
+
+                    # If the encoder must be kept frozen (and, by default, in
+                    # evaluation mode), put only the decoder back into
+                    # training mode, otherwise the whole model.
+                    if frozen_encoder:
+                        switch_training_mode_submodules(
+                            'train', model, ['decoder']
+                        )
+                    else:
+                        model.train()
 
                     # Compute validation (masked) loss and accuracy.
                     val_loss = loss_fn(
@@ -435,8 +481,21 @@ def train_model_mlm(
                             single_mask=single_mask
                         )
 
-                        # Generate predictions for the factorized data.
+                        # Generate predictions for the validation data, switching to
+                        # evaluation mode.
+                        model.eval()
+
                         factorized_pred = model(masked_factorized_sequences)
+
+                        # If the encoder must be kept frozen (and, by default,
+                        # in evaluation mode), put only the decoder back into
+                        # training mode, otherwise the whole model.
+                        if frozen_encoder:
+                            switch_training_mode_submodules(
+                                'train', model, ['decoder']
+                            )
+                        else:
+                            model.train()
 
                         # Compute (masked) loss and accuracy on the factorized
                         # data.

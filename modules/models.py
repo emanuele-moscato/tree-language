@@ -450,3 +450,33 @@ def freeze_encoder_weights(model, trainable_modules=['decoder']):
             f' | Parameters trainable: {all([p.requires_grad for p in submodule[1].parameters()])}'
             f' | Training mode: {submodule[1].training}'
         )
+
+def switch_training_mode_submodules(mode, model, submodules):
+    """
+    Given a model and a list of its submodules (not necessarily all of them),
+    applies the `mode` training mode to that submodules. Possible modes:
+      * `mode='train'`: the submodules are put in training mode (dropout and
+                        batch normalization on).
+      * `mode='eval'`: the submodules are put in evaluation mode (dropout and
+                       batch normalization off).
+    """
+    if mode not in ['train', 'eval']:
+        raise Exception(
+            f"Mode {mode} not implemented (possible values: 'train', 'eval')"
+        )
+
+    # Convert the mode into a bool indicating whether we want training mode or
+    # not.
+    train_bool = True if mode == 'train' else False
+
+    all_submodules = [s[0] for s in model.named_children()]
+
+    for submodule in submodules:
+        if submodule not in all_submodules:
+            raise Exception(
+                f"Submodule {submodule} not found among the model's"
+                f" submodules ({all_submodules})"
+            )
+
+        # Apply training mode to submodule.
+        getattr(model, submodule).train(mode=train_bool)
