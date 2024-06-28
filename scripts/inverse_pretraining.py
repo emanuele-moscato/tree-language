@@ -8,7 +8,7 @@ sys.path.append('../modules/')
 from logger_tree_language import get_logger
 from utilities import read_data
 from models import (TransformerClassifier,
-    replace_classification_head_with_decoder)
+    replace_classification_head_with_decoder, freeze_encoder_weights)
 from model_evaluation_tree_language import compute_accuracy
 from masked_language_modeling import train_model_mlm
 from plotting import plot_training_history
@@ -16,23 +16,24 @@ from plotting import plot_training_history
 
 CLASSIFICATION_MODEL_PATH = '../models/inverse_pretraining/classification_model_epoch_200.pt'
 DATA_PATH = '../data/inverse_pretraining/labeled_data_fixed_4_4_1.0_0.00000.npy'
-EXP_ID = 'inverse_pretraining_1'
+EXP_ID = 'inverse_pretraining_3'
 LOG_FILE_PATH = f'../logs/{EXP_ID}.txt'
 MODEL_DIR = f'../models/inverse_pretraining/{EXP_ID}/'
 DEVICE_INDEX = 1
 SEED = 0
 N_TRAINING_SAMPLES = 2 ** 17
 N_VAL_SAMPLES = 10000
+FREEZE_ENCODER_WEIGHTS = True
 BATCH_SIZE = 32  # 32 is the standard (e.g. in Keras)
 MASK_RATE = 0.1
 SINGLE_MASK = True
-N_EPOCHS = 2000
-CHECKPOINTING_PERIOD_EPOCHS = int(N_EPOCHS) / int(N_EPOCHS)
+N_EPOCHS = 500
+CHECKPOINTING_PERIOD_EPOCHS = int(N_EPOCHS) / 1
 
 
 def main():
     logger = get_logger(
-        'inverse_pretraining',
+        EXP_ID,
         log_file_path=LOG_FILE_PATH
     )
 
@@ -51,6 +52,7 @@ def main():
         f' | N epochs: {N_EPOCHS}'
         # f' | Fraction of warmup updates: {WARMUP_UPDATES_FRAC}'
         f' | Token masking rate: {MASK_RATE}'
+        f' | Token masking rate: {SINGLE_MASK}'
         f' | N validation samples: {N_VAL_SAMPLES}'
     )
 
@@ -112,8 +114,11 @@ def main():
         decoder_output_activation='identity',
     )
 
+    # Note: comment the following two lines to avoid loading a pre-trained
+    #       classification model, if needed.
     torch_checkpoint = torch.load(CLASSIFICATION_MODEL_PATH)
     classification_model.load_state_dict(torch_checkpoint['model_state_dict'])
+
     classification_model = classification_model.to(device=device)
 
     # Check the validation accuracy on the classification task for the trained
@@ -124,12 +129,19 @@ def main():
     )
 
     # Replace the loaded model's classification head with a decoder for MLM.
+    logger.info("Replacing the model's classification head ")
+
     mlm_model = replace_classification_head_with_decoder(
         original_model=classification_model,
         n_classes=q,
         device=device,
         decoder_hidden_dim=[64]
     )
+
+    if FREEZE_ENCODER_WEIGHTS:
+        logger.info("Freezing the encoder's weights")
+
+        freeze_encoder_weights(mlm_model, trainable_modules=['decoder'])
 
     # Get the parameters for the MLM model.
     mlm_model_params = dict(
