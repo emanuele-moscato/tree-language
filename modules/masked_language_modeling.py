@@ -236,7 +236,8 @@ def train_model_mlm(
                     val_sequences,
                     mask_rate=mask_rate,
                     reshaped_mask_idx=reshaped_mask_idx_val,
-                    device=device
+                    device=device,
+                    single_mask=single_mask
                 )
 
                 # Generate predictions for the validation data.
@@ -275,7 +276,8 @@ def train_model_mlm(
                         factorized_sequences,
                         mask_rate=mask_rate,
                         reshaped_mask_idx=reshaped_mask_idx_factorized_datasets[i],
-                        device=device
+                        device=device,
+                        single_mask=single_mask
                     )
 
                     # Generate predictions for the factorized data.
@@ -374,7 +376,8 @@ def train_model_mlm(
                         val_sequences,
                         mask_rate=mask_rate,
                         reshaped_mask_idx=reshaped_mask_idx_val,
-                        device=device
+                        device=device,
+                        single_mask=single_mask
                     )
 
                     # Generate predictions for the validation data.
@@ -428,7 +431,8 @@ def train_model_mlm(
                             factorized_sequences,
                             mask_rate=mask_rate,
                             reshaped_mask_idx=reshaped_mask_idx_factorized_datasets[i],
-                            device=device
+                            device=device,
+                            single_mask=single_mask
                         )
 
                         # Generate predictions for the factorized data.
