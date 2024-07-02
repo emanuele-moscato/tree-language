@@ -57,41 +57,66 @@ def update_messages(l,q,up_messages,down_messages,M):
             up_messages[i+1,2*j+1,:] = r_up/np.sum(r_up)
     return up_messages,down_messages """
 
-@njit
 def update_messages(l,q,up_messages,down_messages,M,factorized_layers=0):
+    def get_P_xlevel_root(M,level):
+        M_L = np.sum(M,axis=2)
+        M_R = np.sum(M,axis=1)
+        q = M_L.shape[0]
+        leaves_indices = np.arange(2**(level+1))[2**level:]
+        leaves_indices_binary = [bin(leaves_indices[i])[2:][1:] for i in range(len(leaves_indices))]
+        probs = np.empty((q,q,2**level))
+        probs_prev = np.empty((q,q,2**level))
+        for i in range(2**level):
+            probs[:,:,i] = np.eye(q)
+            probs_prev[:,:,i] = np.eye(q)
+            for j in range(level):
+                if leaves_indices_binary[i][j] == '0':
+                    probs[:,:,i] = probs_prev[:,:,i]@M_L
+                else:
+                    probs[:,:,i] = probs_prev[:,:,i]@M_R
+                probs_prev[:,:,:] = probs[:,:,:]
+        return probs 
     # Pre allocate stuff
     r_up = np.zeros(q)
     l_up = np.zeros(q)
     v_down = np.zeros(q)
-    if factorized_layers > 0:
-        M_L = np.sum(M,axis=2)
-        M_R = np.sum(M,axis=1)
     # Start from the leaves and go up to update downgoing (root to leaves) messages
-    for i in range(l-1,-1,-1):
-        if i < factorized_layers:
-            M_eff = np.empty((q,q,q))
-            for j in range(q):
-                M_eff[j,:,:] = np.outer(M_L[j,:],M_R[j,:])
-        else:
-            M_eff = M
+    #for i in range(l-1,-1,-1):
+    for i in range(l-1,factorized_layers-1,-1):
         for j in range(2**i):
             l_down = down_messages[i+1,2*j,:]
             r_down = down_messages[i+1,2*j+1,:]
             # Update the outgoing messages
             v_down[:] = 0
-            for p1 in range(q): # Not using @ because M matrix is not conitguous so better performance this way
+            for p1 in range(q): # Not using @ because M matrix is not contiguous so better performance this way
                 for p2 in range(q):
                     for p3 in range(q):
-                        v_down[p1] += l_down[p2]*M_eff[p1,p2,p3]*r_down[p3]
+                        v_down[p1] += l_down[p2]*M[p1,p2,p3]*r_down[p3]
             down_messages[i,j,:] = v_down/np.sum(v_down)
-    # Now go back down
-    for i in range(l):
-        if i < factorized_layers:
-            M_eff = np.empty((q,q,q))
-            for j in range(q):
-                M_eff[j,:,:] = np.outer(M_L[j,:],M_R[j,:])
-        else:
-            M_eff = M
+    if factorized_layers > 0:
+        probs = get_P_xlevel_root(M,factorized_layers)
+        down_messages_factorized = np.zeros((3,2**factorized_layers,q)) # Along axis = 1 have before and after the factor node and then the variable node
+        down_messages_factorized[-1,:2**factorized_layers,:] = down_messages[factorized_layers,:2**factorized_layers,:]
+        for j in range(2**factorized_layers): # Do each of the 2**k factor nodes updates
+            for p1 in range(q):
+                for p2 in range(q):
+                    down_messages_factorized[1,j,p1] += probs[p1,p2,j]*down_messages_factorized[-1,j,p2]
+            down_messages_factorized[1,j,:] = down_messages_factorized[1,j,:]/np.sum(down_messages_factorized[1,j,:])
+        down_messages_factorized[0,0,:] = np.prod(down_messages_factorized[1,:,:],axis=0)/np.sum(np.prod(down_messages_factorized[1,:,:],axis=0))
+        down_messages[0,0,:] = down_messages_factorized[0,0,:]
+        # Now go back down
+        up_messages_factorized = np.zeros((3,2**factorized_layers,q))
+        up_messages_factorized[0,0,:] = 1/q
+        for j in range(2**factorized_layers):
+            mask = np.arange(2**factorized_layers) != j
+            up_messages_factorized[1,j,:] = np.prod(down_messages_factorized[1,mask,:],axis=0)*up_messages_factorized[0,0,:]
+            up_messages_factorized[1,j,:] = up_messages_factorized[1,j,:]/np.sum(up_messages_factorized[1,j,:])
+            for p1 in range(q):
+                for p2 in range(q):
+                    up_messages_factorized[-1,j,p1] += probs[p2,p1,j]*up_messages_factorized[1,j,p2]
+            up_messages_factorized[-1,j,:] = up_messages_factorized[-1,j,:]/np.sum(up_messages_factorized[-1,j,:])
+        up_messages[factorized_layers,:2**factorized_layers,:] = up_messages_factorized[-1,:,:]
+    for i in range(factorized_layers,l):
         for j in range(2**i):
             l_down = down_messages[i+1,2*j,:]
             r_down = down_messages[i+1,2*j+1,:]
@@ -103,8 +128,8 @@ def update_messages(l,q,up_messages,down_messages,M,factorized_layers=0):
             for p1 in range(q): # Not using @ because M matrix is not conitguous so better performance this way
                 for p2 in range(q):
                     for p3 in range(q):
-                        r_up[p1] += v_up[p2]*M_eff[p2,p3,p1]*l_down[p3]
-                        l_up[p1] += v_up[p2]*M_eff[p2,p1,p3]*r_down[p3]
+                        r_up[p1] += v_up[p2]*M[p2,p3,p1]*l_down[p3]
+                        l_up[p1] += v_up[p2]*M[p2,p1,p3]*r_down[p3]
             up_messages[i+1,2*j,:] = l_up/np.sum(l_up)
             up_messages[i+1,2*j+1,:] = r_up/np.sum(r_up)
     return up_messages,down_messages

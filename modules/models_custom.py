@@ -301,7 +301,7 @@ class CustomTransformerEncoderLayerNoResidualConn(nn.Module):
         return x
 
 
-class TransformerClassifierNoFeedforward(nn.Module):
+class TransformerClassifierNoResiduals(nn.Module):
     """
     Custom version of the TransformerClassifier that is free of residual
     connections in the encoder blocks.
