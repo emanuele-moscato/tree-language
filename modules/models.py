@@ -480,3 +480,48 @@ def switch_training_mode_submodules(mode, model, submodules):
 
         # Apply training mode to submodule.
         getattr(model, submodule).train(mode=train_bool)
+
+
+def get_encoder_layer_residuals(model, layer_number, leaves):
+    """
+    Given a `TransformerClassifier` model with N `TransfomerEncoderLayer`s,
+    indicized from 0 to N-1, and given a layer number in the same interval,
+    returns the residuals to the corresponding encoder layer (i.e. its input)
+    and the output of its self-attention block (`_sa_block`, in the PyTorch
+    standard implementation), so that the two intermediate tensors can be
+    compared.
+
+    Note: this assumes that in each encoder layer the residuals and the output
+          of the self-attention blocks are added up BEFORE APPLYING LAYER
+          NORMALIZATION, which corresponds to a `TransformerEncoderLayer`
+          initialized with the default option `norm_first=False` (this is
+          also the default used within the `TansformerClassifier` model).
+          For the detailed computation in PyTorch's implementation, see:
+            https://pytorch.org/docs/stable/_modules/torch/nn/modules/transformer.html#TransformerEncoderLayer
+    """
+    if layer_number not in range(len(model.transformer_encoder.layers)):
+        raise Exception(
+            f"Requested layer number ({layer_number}) doesn't exist"
+            f" for model with {len(model.transformer_encoder.layers)}"
+            " encoder layers"
+        )
+
+    with torch.no_grad():
+        residuals = model.positional_embedding(model.input_embedding(leaves))
+
+        # Compute the output of the first `layer_number` layers (all encoder
+        # layers before the selected one).
+        for i in range(layer_number):
+            residuals = model.transformer_encoder.layers[i](residuals)
+
+        # Compute the output of the self-attention block of the
+        # attention layer `layer_number`.
+        # Note: here we assume that layer normalization is applied AFTER
+        #       residuals and attention output are added up.
+        attention_output = (
+            model.transformer_encoder.layers[layer_number]._sa_block(
+                residuals, attn_mask=None, key_padding_mask=None
+            )
+        )
+
+    return residuals, attention_output
