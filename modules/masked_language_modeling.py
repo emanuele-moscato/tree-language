@@ -132,7 +132,8 @@ def train_model_mlm(
         val_sequences=None,
         single_mask=False,
         test_data_factorized=None,
-        frozen_encoder=False
+        frozen_encoder=False,
+        checkpoint_times=None
     ):
     """
     Trains a model for masked language modeling.
@@ -551,7 +552,7 @@ def train_model_mlm(
             if (
                 (checkpointing_period_epochs is not None)
                 and (epoch_counter % checkpointing_period_epochs == 0)
-            ):
+            ) or (checkpoint_times is not None and epoch_counter in checkpoint_times):
                 # Save model/optimizer checkpoint.
                 checkpoint_path = os.path.join(
                     model_dir, 
