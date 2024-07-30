@@ -116,8 +116,10 @@ def train_model_ancestor_probe(
         reduction='none'
     )
 
+    x_train,y_train = sequences
+
     training_loader = torch.utils.data.DataLoader(
-        torch.utils.data.TensorDataset(sequences),
+        torch.utils.data.TensorDataset(x_train,y_train),
         batch_size=batch_size,
         shuffle=True,
         drop_last=True
