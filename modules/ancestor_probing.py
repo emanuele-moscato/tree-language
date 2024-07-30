@@ -17,7 +17,7 @@ def training_step_ancestor(
     in `optimizer` and minimizing the loss `loss_fn`.
     """
     # Unpack the training data.
-    x_train, y_train = training_data
+    x_train,y_train = training_data
 
     # Compute the loss function on the training data.
     y_pred = model(x_train)
@@ -173,19 +173,17 @@ def train_model_ancestor_probe(
                 # sequences).
                 batch = batch[0]
 
+                x_batch,y_batch = batch
+
                 # Perform a training step.
                 training_loss_batch = training_step_ancestor(
-                    batch,
+                    (x_batch,y_batch),
                     model,
                     loss_fn,
                     optimizer
                 )
 
                 training_loss_batches.append(training_loss_batch)
-
-                # Compute the training accuracy over the batch and append it
-                # to the corresponding list.
-                x_batch, y_batch = batch
 
                 training_accuracy_batch = compute_ancestors_accuracy(
                     model(x_batch),
