@@ -169,10 +169,6 @@ def train_model_ancestor_probe(
             for batch in training_loader:
                 update_counter += 1
 
-                # In this case, batch is a 1-element list (the batch of
-                # sequences).
-                batch = batch[0]
-
                 x_batch,y_batch = batch
 
                 # Perform a training step.
