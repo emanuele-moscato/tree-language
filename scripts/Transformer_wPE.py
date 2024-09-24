@@ -4,7 +4,7 @@ from torch import nn
 import sys
 import os
 
-sys.path.append('./Emanuele_git/tree-language/modules')
+sys.path.append('../modules/')
 
 from training import train_model
 from models import TransformerClassifier

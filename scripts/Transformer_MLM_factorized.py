@@ -6,7 +6,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import torch
 
-sys.path.append('./Emanuele_git/tree-language/modules/')
+sys.path.append('../modules/')
 
 from logger_tree_language import get_logger
 from models import TransformerClassifier
