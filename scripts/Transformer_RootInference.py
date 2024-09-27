@@ -1,3 +1,30 @@
+"""
+Transformer_RootInference.py
+
+This script sets up and runs a transformer-based model for root inference tasks, trained on the full hierarchical data and tested on all factorization levels. This script assumes the data has been generated using gen_filtered_hierarchical_data.py.
+
+It includes data preparation, model training, and evaluation.
+
+Modules:
+- numpy: For numerical operations.
+- torch: For building and training the neural network.
+- sys, os: For system operations and path management.
+- training: Custom module for training the model.
+- models: Custom module containing the TransformerClassifier model.
+- logger_tree_language: Custom module for logging.
+
+Key Variables:
+- device: Specifies whether to use GPU or CPU for computations.
+- seeds: List of random seeds for reproducibility.
+- P: Array of training sample sizes.
+- N_test: Number of test samples.
+- sigma, q, l: Data parameters.
+- loss_fn: Loss function for training.
+- num_epochs: Number of training epochs.
+- embedding_size: Size of the embedding layer in the model.
+- n_layers: List specifying the number of layers in the transformer model.
+"""
+
 import numpy as np 
 import torch
 from torch import nn
@@ -8,10 +35,7 @@ sys.path.append('../modules/')
 
 from training import train_model
 from models import TransformerClassifier
-from models_custom import TransformerClassifierNoFeedforward,TransformerClassifierNoResiduals
 from logger_tree_language import get_logger
-
-print('Running sigma = 1 with l = 4, 4 then 1 layers of attention with the new and fixed factorized validation LINEAR READOUT.',flush=True)
 
 print('Imports done.',flush=True)
 
@@ -19,44 +43,49 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 print('Running on device:', device,flush=True)
 
-#seeds = [0,1,15,31]
 seeds = [0]
 P = 2**np.arange(9,18) # Number of training samples that will be used
 N_test = int(1e4) # Number of test samples
-sigma = 1.0
-epsilon = 0.0
+# Data params
+sigma = 1.0 
 q = 4
 l = 4
+# Training params
 loss_fn = nn.CrossEntropyLoss()
 num_epochs = 200
 embedding_size = 128
-#n_layers = [1,2,4]
-n_layers = [2,3]
+n_layers = [4]
 n_head = 1
 
-[q,l,sigma,epsilon,x0s,xis,M_s] = np.load('./sim_data/labeled_data_fixed_{}_{}_{}_{:.5f}.npy'.format(q,l,sigma,epsilon),allow_pickle=True)
+# Load the full data
+k = 0
+[q,l,sigma,x0s,xis,M_s] = np.load('./sim_data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,k),allow_pickle=True)
 
+# Will be used to compute validation on factorized models
 factorized_layers = np.flip(np.arange(1,l+1))
 
 for n_layer in n_layers:
     for seed in seeds:
         x0 = x0s[:,seed]
         xi = xis[:,:,seed]
-        # Need to re-shuffle the data
+        # Re-shuffle the data
         indices = np.arange(x0s.shape[0])
         np.random.shuffle(indices)
         x0 = x0s[indices,seed]
         xi = xis[:,indices,seed]
+        # Prepare the test data
         y_test = nn.functional.one_hot(torch.from_numpy(x0[-N_test:]).to(dtype=torch.int64), num_classes=q).to(dtype=torch.float32).to(device=device)
         x_test = torch.from_numpy(xi[:,-N_test:].T).to(device=device).int()
         test_data_factorized = []
+        # Prepare the test data on factorized trees
         for i in range(len(factorized_layers)):
-            [_,_,_,_,x0s_factorized,xis_factorized,_,_] = np.load('./sim_data/labeled_data_fixed_factorizedNew_{}_{}_{}_{:.5f}_{}.npy'.format(q,l,sigma,epsilon,factorized_layers[i]),allow_pickle=True)
+            [_,_,_,x0s_factorized,xis_factorized,_,_] = np.load('./sim_data/labeled_data_fixed_factorizedNew_{}_{}_{}_{}.npy'.format(q,l,sigma,factorized_layers[i]),allow_pickle=True)
             x0_factorized = x0s_factorized[:,seed]
             xi_factorized = xis_factorized[:,:,seed]
             y_test_factorized = nn.functional.one_hot(torch.from_numpy(x0_factorized[-N_test:]).to(dtype=torch.int64), num_classes=q).to(dtype=torch.float32).to(device=device)
             x_test_factorized = torch.from_numpy(xi_factorized[:,-N_test:].T).to(device=device).int()
             test_data_factorized.append((x_test_factorized,y_test_factorized))
+        # Train the model
         for p in P:
             torch.cuda.empty_cache()
             x_train = torch.from_numpy(xi[:,:p].T).to(device=device).int()
@@ -83,9 +112,9 @@ for n_layer in n_layers:
                 test_data_factorized=test_data_factorized
             )
             # Save the training history and settings
-            np.save('./sim_data/Transformer_wPE_flat_wfactorizedvalNew_LinearReadout_{}_{}_{:.2f}_{:.5f}_{}_{}_{}.npy'.format(q,l,sigma,epsilon,seed,p,n_layer),np.array([q,l,sigma,epsilon,seed,p,n_layer,training_history,embedding_size],dtype=object))
-            # Save the actual model
-            model_dir = './models/model_wfactorizedvalNew_LinearReadout_{}_{}_{:.2f}_{:.5f}_{}_{}_{}'.format(q,l,sigma,epsilon,seed,p,n_layer)
+            np.save('./sim_data/Transformer_RootInference_flat_wfactorizedval_LinearReadout_{}_{}_{:.2f}_{}_{}_{}.npy'.format(q,l,sigma,seed,p,n_layer),np.array([q,l,sigma,seed,p,n_layer,training_history,embedding_size],dtype=object))
+            # Save the actual model for further finetuning and studying the attention maps
+            model_dir = './models/model_wfactorizedval_LinearReadout_{}_{}_{:.2f}_{}_{}_{}'.format(q,l,sigma,seed,p,n_layer)
             if model_dir is not None:
                 # Create model directory if it doesn't exist.
                 if not os.path.exists(model_dir):
