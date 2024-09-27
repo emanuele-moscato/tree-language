@@ -21,42 +21,6 @@ def generate_tree(l,q,leaves):
         down_messages[l,j,:] += leaves[j,:] # Add the prescribed leaves
     return up_messages, down_messages
 
-""" @njit
-def update_messages(l,q,up_messages,down_messages,M):
-    # Pre allocate stuff
-    r_up = np.zeros(q)
-    l_up = np.zeros(q)
-    v_down = np.zeros(q)
-    # Start from the leaves and go up to update downgoing (root to leaves) messages
-    for i in range(l-1,-1,-1):
-        for j in range(2**i):
-            l_down = down_messages[i+1,2*j,:]
-            r_down = down_messages[i+1,2*j+1,:]
-            # Update the outgoing messages
-            v_down[:] = 0
-            for p1 in range(q): # Not using @ because M matrix is not conitguous so better performance this way
-                for p2 in range(q):
-                    for p3 in range(q):
-                        v_down[p1] += l_down[p2]*M[p1,p2,p3]*r_down[p3]
-            down_messages[i,j,:] = v_down/np.sum(v_down)
-    for i in range(l):
-        for j in range(2**i):
-            l_down = down_messages[i+1,2*j,:]
-            r_down = down_messages[i+1,2*j+1,:]
-            v_up = up_messages[i,j,:]
-            # Update the outgoing messages
-            r_up[:] = 0
-            l_up[:] = 0
-            v_down[:] = 0
-            for p1 in range(q): # Not using @ because M matrix is not conitguous so better performance this way
-                for p2 in range(q):
-                    for p3 in range(q):
-                        r_up[p1] += v_up[p2]*M[p2,p3,p1]*l_down[p3]
-                        l_up[p1] += v_up[p2]*M[p2,p1,p3]*r_down[p3]
-            up_messages[i+1,2*j,:] = l_up/np.sum(l_up)
-            up_messages[i+1,2*j+1,:] = r_up/np.sum(r_up)
-    return up_messages,down_messages """
-
 def update_messages(l,q,up_messages,down_messages,M,factorized_layers=0):
     def get_P_xlevel_root(M,level):
         M_L = np.sum(M,axis=2)
