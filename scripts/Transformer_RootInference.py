@@ -59,7 +59,7 @@ n_head = 1
 
 # Load the full data
 k = 0
-[q,l,sigma,x0s,xis,M_s] = np.load('./sim_data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,k),allow_pickle=True)
+[q,l,sigma,x0s,xis,M_s] = np.load('./data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,k),allow_pickle=True)
 
 # Will be used to compute validation on factorized models
 factorized_layers = np.flip(np.arange(1,l+1))
@@ -75,7 +75,7 @@ for n_layer in n_layers:
         test_data_factorized = []
         # Prepare the test data on factorized trees
         for i in range(len(factorized_layers)):
-            [_,_,_,x0s_factorized,xis_factorized,_,_] = np.load('./sim_data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,factorized_layers[i]),allow_pickle=True)
+            [_,_,_,x0s_factorized,xis_factorized,_,_] = np.load('./data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,factorized_layers[i]),allow_pickle=True)
             x0_factorized = x0s_factorized[:,seed]
             xi_factorized = xis_factorized[:,:,seed]
             y_test_factorized = nn.functional.one_hot(torch.from_numpy(x0_factorized[-N_test:]).to(dtype=torch.int64), num_classes=q).to(dtype=torch.float32).to(device=device)
@@ -108,7 +108,7 @@ for n_layer in n_layers:
                 test_data_factorized=test_data_factorized
             )
             # Save the training history and settings
-            np.save('./sim_data/Transformer_RootInference_wfactorizedval_LinearReadout_{}_{}_{:.2f}_{}_{}_{}.npy'.format(q,l,sigma,seed,p,n_layer),np.array([q,l,sigma,seed,p,n_layer,training_history,embedding_size],dtype=object))
+            np.save('./results/Transformer_RootInference_wfactorizedval_LinearReadout_{}_{}_{:.2f}_{}_{}_{}.npy'.format(q,l,sigma,seed,p,n_layer),np.array([q,l,sigma,seed,p,n_layer,training_history,embedding_size],dtype=object))
             # Save the actual model for further finetuning and studying the attention maps
             model_dir = './models/model_wfactorizedval_LinearReadout_{}_{}_{:.2f}_{}_{}_{}'.format(q,l,sigma,seed,p,n_layer)
             if model_dir is not None:

@@ -62,7 +62,7 @@ n_head = 1
 
 # Load the full data
 k = 0
-[q,l,sigma,x0s,xis,M_s] = np.load('./sim_data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,k),allow_pickle=True)
+[q,l,sigma,x0s,xis,M_s] = np.load('./data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,k),allow_pickle=True)
 
 for factorized_layer in factorized_layers: # Loop through all levels of filtering
     [_,_,_,x0s_factorized,xis_factorized,_,_] = np.load('./sim_data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,factorized_layer),allow_pickle=True)
@@ -103,7 +103,7 @@ for factorized_layer in factorized_layers: # Loop through all levels of filterin
                     early_stopper=None
                 )
                 # Save the training history and settings
-                np.save('./sim_data/Transformer_wPE_factorized_LinearReadout_{}_{}_{:.2f}_{}_{}_{}_{}.npy'.format(q,l,sigma,seeds[i],p,n_layer,factorized_layer),np.array([q,l,sigma,seeds[i],p,n_layer,training_history,embedding_size],dtype=object))
+                np.save('./results/Transformer_wPE_factorized_LinearReadout_{}_{}_{:.2f}_{}_{}_{}_{}.npy'.format(q,l,sigma,seeds[i],p,n_layer,factorized_layer),np.array([q,l,sigma,seeds[i],p,n_layer,training_history,embedding_size],dtype=object))
                 # Save the actual model
                 model_dir = './models/model_factorized_LinearReadout_{}_{}_{:.2f}_{}_{}_{}_{}'.format(q,l,sigma,seeds[i],p,n_layer,factorized_layer)
                 if model_dir is not None:

@@ -112,4 +112,4 @@ if __name__ == "__main__":
     # Save the data in a convenient format
     for h in range(N_trials):
         x0s[h],xis[:,h] = runs[h]
-    np.save('./sim_data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,k),np.array([q,l,sigma,x0s,xis,M,k],dtype=object))
+    np.save('./data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,k),np.array([q,l,sigma,x0s,xis,M,k],dtype=object))

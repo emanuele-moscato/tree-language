@@ -134,7 +134,7 @@ checkpoint_epochs = np.logspace(0,3,8).astype(int).tolist()
 
 # Load the full data
 k = 0
-[q,l,sigma,_,xis,M_s] = np.load('./sim_data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,k),allow_pickle=True)
+[q,l,sigma,_,xis,M_s] = np.load('./data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,k),allow_pickle=True)
 
 factorized_layers = np.flip(np.arange(1,l+1))
 
@@ -143,7 +143,7 @@ for n_layer in n_layers:
         for seed in seeds:
             for p in P:
                 for factorized_layer in factorized_layers:
-                    [_,_,_,_,xis_factorized,_,_] = np.load('./sim_data/labeled_data_factorized_LARGE_{}_{}_{}_{}.npy'.format(q,l,sigma,factorized_layer),allow_pickle=True)
+                    [_,_,_,_,xis_factorized,_,_] = np.load('./data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,factorized_layer),allow_pickle=True)
                     torch.cuda.empty_cache() # Avoids running into memory issues
                     xi = xis_factorized[:,:,seed]
                     xi_val = xis[:,-N_val:,seed]
@@ -169,4 +169,4 @@ for n_layer in n_layers:
                         val_sequences=leaves_validation,
                         single_mask=True
                     )
-                    np.save('./sim_data/Transformer_MLM_1mask_factorized_LinearReadout_{}_{}_{:.2f}_{}_{}_{}_{}.npy'.format(q,l,sigma,seed,p,n_layer,factorized_layer),np.array([q,l,sigma,seed,p,n_layer,training_history,embedding_size,p,N_val],dtype=object))
+                    np.save('./results/Transformer_MLM_1mask_factorized_LinearReadout_{}_{}_{:.2f}_{}_{}_{}_{}.npy'.format(q,l,sigma,seed,p,n_layer,factorized_layer),np.array([q,l,sigma,seed,p,n_layer,training_history,embedding_size,p,N_val],dtype=object))

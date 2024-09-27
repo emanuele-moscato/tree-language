@@ -134,7 +134,7 @@ checkpoint_epochs = np.logspace(0,3,8).astype(int).tolist()
 
 # Load the full data
 k = 0
-[q,l,sigma,_,xis,M_s] = np.load('./sim_data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,k),allow_pickle=True)
+[q,l,sigma,_,xis,M_s] = np.load('./data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,k),allow_pickle=True)
 
 factorized_layers = np.flip(np.arange(1,l+1))
 
@@ -151,7 +151,7 @@ for n_layer in n_layers:
             test_data_factorized = []
             # Load the factorized testing data
             for j in range(len(factorized_layers)):
-                [_,_,_,_,xis_factorized,_,_] = np.load('./sim_data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,factorized_layers[j]),allow_pickle=True)
+                [_,_,_,_,xis_factorized,_,_] = np.load('./data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,factorized_layers[j]),allow_pickle=True)
                 xi_factorized = xis_factorized[:,:,i]
                 x_test_factorized = torch.from_numpy(xi_factorized[:,-N_val:].T).to(device=device).to(dtype=torch.int64)
                 test_data_factorized.append(x_test_factorized)
@@ -180,4 +180,4 @@ for n_layer in n_layers:
                     test_data_factorized=test_data_factorized,
                     checkpoint_times=checkpoint_epochs
                 )
-                np.save('./sim_data/Transformer_MLM_1mask_wfactorizedval_LinearReadout_{}_{}_{:.2f}_{}_{}_{}.npy'.format(q,l,sigma,seeds[i],p,n_layer),np.array([q,l,sigma,seeds[i],p,n_layer,training_history,embedding_size,p,N_val],dtype=object))
+                np.save('./results/Transformer_MLM_1mask_wfactorizedval_LinearReadout_{}_{}_{:.2f}_{}_{}_{}.npy'.format(q,l,sigma,seeds[i],p,n_layer),np.array([q,l,sigma,seeds[i],p,n_layer,training_history,embedding_size,p,N_val],dtype=object))
