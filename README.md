@@ -8,7 +8,7 @@ It assumes the existence of a subfolder `./data/`in which the generated data wil
 
 ## Training of transformers
 
-We also provide modules and training scripts to train the transformer architecture studied in the paper on our data model. In any of these two tasks, the scripts output results (i.e. the training history) in a Numpy `.npy` container in a `./results/` subfolder, as well as the full PyTorch model (possibly at several checkpoints) in an appropriately named subfolder itself in `./models/`subfolder.
+We also provide modules and training scripts to train the transformer architecture studied in the paper on our data model. In any of these two tasks, the scripts output results (i.e. the training history) in a Numpy `.npy` container in a `./results/` subfolder, as well as the full PyTorch model (possibly at several checkpoints) in an appropriately named subfolder itself in `./models/`subfolder. These models can then notably be used to visualize attention maps or perform fine-tuning.
 
 ### Root inference
 There are two scripts: 
