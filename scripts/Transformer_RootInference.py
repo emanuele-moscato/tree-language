@@ -66,20 +66,16 @@ factorized_layers = np.flip(np.arange(1,l+1))
 
 for n_layer in n_layers:
     for seed in seeds:
+        # Load the full data
         x0 = x0s[:,seed]
         xi = xis[:,:,seed]
-        # Re-shuffle the data
-        indices = np.arange(x0s.shape[0])
-        np.random.shuffle(indices)
-        x0 = x0s[indices,seed]
-        xi = xis[:,indices,seed]
         # Prepare the test data
         y_test = nn.functional.one_hot(torch.from_numpy(x0[-N_test:]).to(dtype=torch.int64), num_classes=q).to(dtype=torch.float32).to(device=device)
         x_test = torch.from_numpy(xi[:,-N_test:].T).to(device=device).int()
         test_data_factorized = []
         # Prepare the test data on factorized trees
         for i in range(len(factorized_layers)):
-            [_,_,_,x0s_factorized,xis_factorized,_,_] = np.load('./sim_data/labeled_data_fixed_factorizedNew_{}_{}_{}_{}.npy'.format(q,l,sigma,factorized_layers[i]),allow_pickle=True)
+            [_,_,_,x0s_factorized,xis_factorized,_,_] = np.load('./sim_data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,factorized_layers[i]),allow_pickle=True)
             x0_factorized = x0s_factorized[:,seed]
             xi_factorized = xis_factorized[:,:,seed]
             y_test_factorized = nn.functional.one_hot(torch.from_numpy(x0_factorized[-N_test:]).to(dtype=torch.int64), num_classes=q).to(dtype=torch.float32).to(device=device)

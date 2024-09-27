@@ -65,7 +65,7 @@ k = 0
 [q,l,sigma,x0s,xis,M_s] = np.load('./sim_data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,k),allow_pickle=True)
 
 for factorized_layer in factorized_layers: # Loop through all levels of filtering
-    [_,_,_,x0s_factorized,xis_factorized,_,_] = np.load('./sim_data/labeled_data_fixed_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,factorized_layer),allow_pickle=True)
+    [_,_,_,x0s_factorized,xis_factorized,_,_] = np.load('./sim_data/labeled_data_factorized_{}_{}_{}_{}.npy'.format(q,l,sigma,factorized_layer),allow_pickle=True)
     for n_layer in n_layers:
         for i in range(len(seeds)):
             # Load the test data
