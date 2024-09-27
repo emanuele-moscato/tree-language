@@ -1,7 +1,7 @@
 """
 Transformer_RootInference.py
 
-This script sets up and runs a transformer-based model for root inference tasks, trained on the full hierarchical data and tested on all factorization levels. This script assumes the data has been generated using gen_filtered_hierarchical_data.py.
+This script sets up and runs a transformer-based model for root inference tasks, trained on the full hierarchical data and tested on all filtering levels. This script assumes the data has been generated using gen_filtered_hierarchical_data.py.
 
 It includes data preparation, model training, and evaluation.
 
@@ -43,14 +43,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 print('Running on device:', device,flush=True)
 
-seeds = [0]
-P = 2**np.arange(9,18) # Number of training samples that will be used
-N_test = int(1e4) # Number of test samples
 # Data params
+seeds = [0]
 sigma = 1.0 
 q = 4
 l = 4
 # Training params
+P = 2**np.arange(9,18) # Number of training samples that will be used
+N_test = int(1e4) # Number of test samples
 loss_fn = nn.CrossEntropyLoss()
 num_epochs = 200
 embedding_size = 128
@@ -112,7 +112,7 @@ for n_layer in n_layers:
                 test_data_factorized=test_data_factorized
             )
             # Save the training history and settings
-            np.save('./sim_data/Transformer_RootInference_flat_wfactorizedval_LinearReadout_{}_{}_{:.2f}_{}_{}_{}.npy'.format(q,l,sigma,seed,p,n_layer),np.array([q,l,sigma,seed,p,n_layer,training_history,embedding_size],dtype=object))
+            np.save('./sim_data/Transformer_RootInference_wfactorizedval_LinearReadout_{}_{}_{:.2f}_{}_{}_{}.npy'.format(q,l,sigma,seed,p,n_layer),np.array([q,l,sigma,seed,p,n_layer,training_history,embedding_size],dtype=object))
             # Save the actual model for further finetuning and studying the attention maps
             model_dir = './models/model_wfactorizedval_LinearReadout_{}_{}_{:.2f}_{}_{}_{}'.format(q,l,sigma,seed,p,n_layer)
             if model_dir is not None:
