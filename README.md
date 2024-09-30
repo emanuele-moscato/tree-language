@@ -1,5 +1,9 @@
 # Code for the paper "How transformers learn structured data: insights from hierarchical filtering."
 
+## Requirements
+
+The code has been run with Python 3.10 within a [Conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/index.html). The full requirements can be found in the file `environment.yml` for full reproducibility. Most requirements in the environment have been installed using Pip anyway (see the corresponding section in the file), which makes it easy to reproduce the environment even without Conda.
+
 ## Tree-based language generation
 The script generating data following the filtered hierarchical model introduced in the paper is
 - `scripts/gen_filtered_hierarchical_data.py`.
