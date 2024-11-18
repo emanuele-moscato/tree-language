@@ -100,7 +100,8 @@ def train_model(
         checkpoint_id=None,
         tensorboard_log_dir=None,
         padding_token=None,
-        test_data_factorized=None
+        test_data_factorized=None,
+        checkpoint_times=None
     ):
     """
     Trains a model for `n_epochs` epochs, with the specified loss function,
@@ -494,10 +495,10 @@ def train_model(
             if (
                 (checkpointing_period_epochs is not None)
                 and (epoch_counter % checkpointing_period_epochs == 0)
-            ):
+            ) or (checkpoint_times is not None and epoch_counter in checkpoint_times):
                 # Save model/optimizer checkpoint.
                 checkpoint_path = os.path.join(
-                    model_dir,
+                    model_dir, 
                     checkpoint_id + f'_epoch_{epoch_counter}.pt'
                 )
 

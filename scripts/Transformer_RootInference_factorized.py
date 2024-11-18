@@ -79,6 +79,13 @@ for factorized_layer in factorized_layers: # Loop through all levels of filterin
             x_test = torch.from_numpy(xi_test[:,-N_test:].T).to(device=device).int()
             # Train the model
             for p in P:
+                # Create model directory
+                model_dir = './models/model_factorized_LinearReadout_{}_{}_{:.2f}_{}_{}_{}_{}'.format(q,l,sigma,seeds[i],p,n_layer,factorized_layer)
+                if model_dir is not None:
+                    # Create model directory if it doesn't exist.
+                    if not os.path.exists(model_dir):
+                        os.makedirs(model_dir)
+                # Run training
                 torch.cuda.empty_cache()
                 x_train = torch.from_numpy(xi[:,:p].T).to(device=device).int()
                 y_train = nn.functional.one_hot(torch.from_numpy(x0[:p]).to(dtype=torch.int64), num_classes=q).to(dtype=torch.float32).to(device=device)
@@ -100,16 +107,12 @@ for factorized_layer in factorized_layers: # Loop through all levels of filterin
                     loss_fn=loss_fn,
                     learning_rate=1e-4,
                     batch_size=32,
-                    early_stopper=None
+                    early_stopper=None,
+                    model_dir=model_dir
                 )
                 # Save the training history and settings
                 np.save('./results/Transformer_wPE_factorized_LinearReadout_{}_{}_{:.2f}_{}_{}_{}_{}.npy'.format(q,l,sigma,seeds[i],p,n_layer,factorized_layer),np.array([q,l,sigma,seeds[i],p,n_layer,training_history,embedding_size],dtype=object))
-                # Save the actual model
-                model_dir = './models/model_factorized_LinearReadout_{}_{}_{:.2f}_{}_{}_{}_{}'.format(q,l,sigma,seeds[i],p,n_layer,factorized_layer)
-                if model_dir is not None:
-                    # Create model directory if it doesn't exist.
-                    if not os.path.exists(model_dir):
-                        os.makedirs(model_dir)
+                # Save the actual model at the end
                 checkpoint_id = 'model'
                 checkpoint_path = os.path.join(model_dir,checkpoint_id + f'_epoch_{num_epochs}.pt')
                 torch.save(
