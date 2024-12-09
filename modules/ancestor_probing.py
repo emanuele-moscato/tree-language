@@ -21,7 +21,9 @@ def training_step_ancestor(
 
     # Compute the loss function on the training data.
     y_pred = model(x_train)
-    training_loss = loss_fn(y_pred, y_train).mean()
+    training_loss = loss_fn(y_pred.permute(0,2,1), y_train).mean() # Standard loss on all elements of the sequence, uncomment below to just use the last and first tokens (i.e. to check it does not overfit)
+    #training_loss = loss_fn(y_pred.permute(0,2,1), y_train).transpose(0,1) # dim should be sequence length, batch_size
+    #training_loss = (torch.stack([training_loss[0], training_loss[-1]], dim=0)).mean()
 
     # Reset gradients and recompute it.
     optimizer.zero_grad()
@@ -35,10 +37,10 @@ def training_step_ancestor(
 
 def compute_ancestors_accuracy(pred_logits, actual_sequence):
     """
-    Compute the ancestor of each of the tokens, NB here assume actual sequence is one-hot encoded (required for train loss).
+    Compute the ancestor of each of the tokens, NB here assume actual sequence is an array of integers (NOT one-hot encoded).
     """
     return (
-        torch.argmax(pred_logits, axis=-1) == torch.argmax(actual_sequence,axis=-1)
+        torch.argmax(pred_logits, axis=-1) == actual_sequence
     ).to(dtype=torch.float32).mean()
 
 
@@ -68,6 +70,8 @@ def train_model_ancestor_probe(
     logger.info('Training model')
 
     update_counter = 0
+
+    print('Reloaded')
 
     if training_history is None:
         epoch_counter = 0
@@ -151,7 +155,9 @@ def train_model_ancestor_probe(
                     model.train()
 
                 # Compute validation (masked) loss and accuracy.
-                val_loss = loss_fn(val_pred,y_val).mean()
+                #val_loss = loss_fn(val_pred.permute(0,2,1),y_val).mean()
+                val_loss = loss_fn(val_pred.permute(0,2,1), y_val).transpose(0,1) # dim should be sequence length, batch_size
+                val_loss = (torch.stack([val_loss[0], val_loss[-1]], dim=0)).mean()
 
                 val_accuracy = compute_ancestors_accuracy(val_pred,y_val)
 
@@ -229,7 +235,9 @@ def train_model_ancestor_probe(
                         model.train()
 
                     # Compute validation (masked) loss and accuracy.
-                    val_loss = loss_fn(val_pred,y_val).mean()
+                    #val_loss = loss_fn(val_pred.permute(0,2,1),y_val).mean()
+                    val_loss = loss_fn(val_pred.permute(0,2,1), y_val).transpose(0,1) # dim should be sequence length, batch_size
+                    val_loss = (torch.stack([val_loss[0], val_loss[-1]], dim=0)).mean()
 
                     val_accuracy = compute_ancestors_accuracy(val_pred,y_val)
 
