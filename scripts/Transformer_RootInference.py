@@ -49,7 +49,7 @@ sigma = 1.0
 q = 4
 l = 4
 # Training params
-P = 2**np.arange(9,18) # Number of training samples that will be used
+P = 2**np.arange(9,18)[-1:] # Number of training samples that will be used
 N_test = int(1e4) # Number of test samples
 loss_fn = nn.CrossEntropyLoss()
 num_epochs = 200
